@@ -19,8 +19,7 @@ export function Navigation() {
   }
 
   const baseNavLinks = [
-    { href: '/', label: 'Home', icon: Sparkles },
-    { href: '/events', label: 'Events', icon: Calendar },
+    { href: '/', label: 'App', icon: Sparkles },
     { href: '/profile', label: 'Profile', icon: User },
     { href: '/kiosk', label: 'Kiosk', icon: Monitor },
   ];

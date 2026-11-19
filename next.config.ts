@@ -1,9 +1,12 @@
 import type { NextConfig } from 'next';
+import fs from 'fs';
+import path from 'path';
 
-// When deployed to https://socialmediumben.github.io/hillel_app/
-// the base path must match the GitHub repository name.
+// If a custom domain CNAME is present, GitHub Pages serves from root ('')
+// Otherwise, on socialmediumben.github.io/hillel_app/ it uses '/hillel_app'
+const hasCname = fs.existsSync(path.join(__dirname, 'public', 'CNAME')) || fs.existsSync(path.join(__dirname, 'CNAME'));
 const isProd = process.env.NODE_ENV === 'production';
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? (isProd ? '/hillel_app' : '');
+const basePath = hasCname ? '' : (process.env.NEXT_PUBLIC_BASE_PATH ?? (isProd ? '/hillel_app' : ''));
 
 const nextConfig: NextConfig = {
   output: 'export',
