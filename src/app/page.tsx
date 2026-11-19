@@ -2,16 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Calendar, User, Monitor, Sparkles, Clock, MapPin, CheckCircle2, Lock, Check } from 'lucide-react';
+import { Calendar, Sparkles, Clock, MapPin, CheckCircle2, Lock, Check, X, User } from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
-import { useAuth } from '@/context/AuthContext';
 import { useConfig } from '@/context/ConfigContext';
-import { AppEvent, getStudentDisplayName, isEventToday, isEventUpcomingOrToday } from '@/lib/types';
+import { AppEvent, isEventToday, isEventUpcomingOrToday } from '@/lib/types';
 import { fetchEvents, recordEventRsvp } from '@/lib/sheets';
-import { getTodayDateString } from '@/lib/sandbox';
+
+const LS_RSVP_USER_KEY = 'hillel_rsvp_user';
+
+interface SavedRsvpUser {
+  name: string;
+  email: string;
+}
 
 export default function HomePage() {
-  const { student } = useAuth();
   const { config } = useConfig();
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
@@ -20,13 +24,28 @@ export default function HomePage() {
   const [rsvpLoadingId, setRsvpLoadingId] = useState<string | null>(null);
   const [rsvpFeedback, setRsvpFeedback] = useState<string | null>(null);
 
-  const todayStr = getTodayDateString();
+  // Quick RSVP Modal State
+  const [modalEvent, setModalEvent] = useState<AppEvent | null>(null);
+  const [rsvpName, setRsvpName] = useState('');
+  const [rsvpEmail, setRsvpEmail] = useState('');
+  const [savedUser, setSavedUser] = useState<SavedRsvpUser | null>(null);
 
   useEffect(() => {
     fetchEvents(config)
       .then((data) => setEvents(data))
       .catch(console.error)
       .finally(() => setIsLoadingEvents(false));
+
+    // Load saved user info for 1-click RSVP
+    try {
+      const cached = localStorage.getItem(LS_RSVP_USER_KEY);
+      if (cached) {
+        const u = JSON.parse(cached);
+        setSavedUser(u);
+        setRsvpName(u.name || '');
+        setRsvpEmail(u.email || '');
+      }
+    } catch (_) {}
   }, [config]);
 
   const categories = ['All', 'Shabbat', 'Social', 'Learning', 'Tikkun Olam'];
@@ -37,15 +56,18 @@ export default function HomePage() {
     return e.category && e.category.toLowerCase().includes(selectedCategory.toLowerCase());
   });
 
-  const handleRsvp = async (event: AppEvent) => {
-    if (!student) {
-      setRsvpFeedback('Please sign in to your student profile first to RSVP in one click!');
-      return;
-    }
+  const performRsvp = async (event: AppEvent, studentName: string, studentEmail: string) => {
     setRsvpLoadingId(event.id);
     setRsvpFeedback(null);
     try {
-      const res = await recordEventRsvp(student, event, config);
+      const mockStudent = {
+        id: `std_${studentEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        firstName: studentName.split(' ')[0] || studentName,
+        lastName: studentName.split(' ').slice(1).join(' ') || '',
+        email: studentEmail.toLowerCase().trim(),
+      };
+
+      const res = await recordEventRsvp(mockStudent as any, event, config);
       if (res.success) {
         setRsvpdIds((prev) => new Set([...Array.from(prev), event.id]));
         setRsvpFeedback(`You're confirmed for "${event.title}"! See you there.`);
@@ -54,7 +76,34 @@ export default function HomePage() {
       console.error(err);
     } finally {
       setRsvpLoadingId(null);
+      setModalEvent(null);
     }
+  };
+
+  const handleRsvpClick = (event: AppEvent) => {
+    if (rsvpdIds.has(event.id)) return;
+    if (savedUser && savedUser.name && savedUser.email) {
+      performRsvp(event, savedUser.name, savedUser.email);
+    } else {
+      setModalEvent(event);
+    }
+  };
+
+  const handleModalSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rsvpName.trim() || !rsvpEmail.trim() || !modalEvent) return;
+
+    const user: SavedRsvpUser = {
+      name: rsvpName.trim(),
+      email: rsvpEmail.trim().toLowerCase(),
+    };
+
+    setSavedUser(user);
+    try {
+      localStorage.setItem(LS_RSVP_USER_KEY, JSON.stringify(user));
+    } catch (_) {}
+
+    performRsvp(modalEvent, user.name, user.email);
   };
 
   return (
@@ -71,66 +120,20 @@ export default function HomePage() {
             </div>
 
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight mb-3">
-              {student ? `Shalom, ${getStudentDisplayName(student)}!` : `Welcome to ${config.orgName}`}
+              {savedUser ? `Shalom, ${savedUser.name}!` : `Welcome to ${config.orgName}`}
             </h1>
             <p className="text-blue-100 text-sm sm:text-base font-medium leading-relaxed mb-6">
-              Your community hub for vibrant campus life, Shabbat dinners, bagel brunches, learning, and lasting friendships.
+              Your home for vibrant campus life, community Shabbat dinners, bagel brunches, Jewish learning, social action, and lasting friendships.
             </p>
 
-            <div className="flex flex-wrap gap-3">
-              <a
-                href="#events-section"
-                className="inline-flex items-center space-x-2 bg-white text-blue-800 hover:bg-blue-50 px-5 py-3 rounded-2xl font-black text-sm shadow-md transition-all active:scale-95"
-              >
-                <Calendar className="w-4 h-4" />
-                <span>Browse Events Calendar</span>
-              </a>
-              <Link
-                href="/kiosk"
-                className="inline-flex items-center space-x-2 bg-blue-600/60 hover:bg-blue-600 text-white border border-blue-400/40 px-5 py-3 rounded-2xl font-black text-sm transition-all active:scale-95"
-              >
-                <Monitor className="w-4 h-4" />
-                <span>Open Front Desk Kiosk</span>
-              </Link>
-            </div>
+            <a
+              href="#events-section"
+              className="inline-flex items-center space-x-2 bg-white text-blue-800 hover:bg-blue-50 px-6 py-3.5 rounded-2xl font-black text-sm shadow-md transition-all active:scale-95"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Browse Events Calendar</span>
+            </a>
           </div>
-        </div>
-
-        {/* Quick Portal Action Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link
-            href="/profile"
-            className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-400 transition-all group flex items-start space-x-4"
-          >
-            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold flex-shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-              <User className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-black text-slate-900 text-lg mb-1 group-hover:text-amber-700 transition-colors">
-                Student Profile & Pass
-              </h3>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                {student ? `Signed in as ${getStudentDisplayName(student)}. Edit your info or tap pass.` : 'Sign in to update your graduation year, dietary needs, interests, and 1-click RSVP.'}
-              </p>
-            </div>
-          </Link>
-
-          <Link
-            href="/kiosk"
-            className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-400 transition-all group flex items-start space-x-4"
-          >
-            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold flex-shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-              <Monitor className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-black text-slate-900 text-lg mb-1 group-hover:text-indigo-700 transition-colors">
-                Check-In Kiosk Terminal
-              </h3>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                Self-service front desk check-in via tap card or student search with instant thermal nametag printing.
-              </p>
-            </div>
-          </Link>
         </div>
 
         {/* Integrated Events Calendar Section */}
@@ -147,13 +150,11 @@ export default function HomePage() {
               </p>
             </div>
 
-            {!student && (
-              <Link
-                href="/profile"
-                className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold rounded-2xl text-xs shadow-md transition-all self-start sm:self-auto"
-              >
-                Sign In for 1-Click RSVP
-              </Link>
+            {savedUser && (
+              <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3.5 py-2 rounded-xl flex items-center space-x-2">
+                <User className="w-3.5 h-3.5 text-slate-400" />
+                <span>RSVPing as: {savedUser.name}</span>
+              </div>
             )}
           </div>
 
@@ -258,12 +259,12 @@ export default function HomePage() {
 
                     <div className="pt-3 border-t border-slate-100">
                       {isPast ? (
-                        <div className="text-center py-2 text-xs font-bold text-slate-400 bg-slate-100 rounded-xl">
+                        <div className="text-center py-2.5 text-xs font-bold text-slate-400 bg-slate-100 rounded-xl">
                           Past Event
                         </div>
-                      ) : student ? (
+                      ) : (
                         <button
-                          onClick={() => handleRsvp(evt)}
+                          onClick={() => handleRsvpClick(evt)}
                           disabled={isRsvpd || rsvpLoadingId === evt.id}
                           className={`w-full py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
                             isRsvpd
@@ -282,13 +283,6 @@ export default function HomePage() {
                             <span>RSVP (Free)</span>
                           )}
                         </button>
-                      ) : (
-                        <Link
-                          href="/profile"
-                          className="block text-center w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
-                        >
-                          Sign In to RSVP
-                        </Link>
                       )}
                     </div>
                   </div>
@@ -298,6 +292,74 @@ export default function HomePage() {
           )}
         </div>
       </main>
+
+      {/* Quick RSVP Modal */}
+      {modalEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative text-left space-y-5">
+            <button
+              onClick={() => setModalEvent(null)}
+              className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 bg-blue-100 px-2.5 py-0.5 rounded-full">
+                Free Event RSVP
+              </span>
+              <h3 className="text-xl font-black text-slate-900 mt-2 leading-tight">
+                {modalEvent.title}
+              </h3>
+              <p className="text-xs text-slate-500 font-semibold mt-1">
+                {modalEvent.date} {modalEvent.startTime && `• ${modalEvent.startTime}`}
+              </p>
+            </div>
+
+            <form onSubmit={handleModalSubmit} className="space-y-4">
+              <div>
+                <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
+                  Your Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={rsvpName}
+                  onChange={(e) => setRsvpName(e.target.value)}
+                  placeholder="e.g. Rachel Cohen"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
+                  Your Email *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={rsvpEmail}
+                  onChange={(e) => setRsvpEmail(e.target.value)}
+                  placeholder="e.g. rachel@campus.edu"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={rsvpLoadingId === modalEvent.id}
+                  className="w-full py-3.5 bg-blue-700 hover:bg-blue-800 text-white font-black rounded-2xl text-sm shadow-md transition-transform active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Confirm Free RSVP</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <footer className="py-6 text-xs font-semibold text-slate-400 border-t border-slate-200 bg-white">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
