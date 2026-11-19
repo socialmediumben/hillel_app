@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "node -e \"require('fs').writeFileSync('out/.nojekyll', '')\"",
+    "postbuild": "node -e \"const fs = require('fs'); fs.writeFileSync('out/.nojekyll', ''); const pages = ['kiosk', 'events', 'profile', 'developer']; pages.forEach(p => { if (fs.existsSync('out/' + p + '/index.html')) fs.copyFileSync('out/' + p + '/index.html', 'out/' + p + '.html'); }); fs.copyFileSync('out/index.html', 'out/404.html'); console.log('Created .nojekyll, static .html aliases, and SPA 404.html fallback');\"",
     "deploy": "gh-pages -d out --dotfiles -b gh-pages",
     "start": "next start",
     "lint": "next lint"
