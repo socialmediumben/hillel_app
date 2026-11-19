@@ -20,15 +20,21 @@ interface ConfigContextType {
   resetConfig: () => void;
   isSandbox: boolean;
   toggleSandbox: () => void;
+  isDevUnlocked: boolean;
+  unlockDevMode: (password: string) => boolean;
+  lockDevMode: () => void;
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 const LS_CONFIG_KEY = 'hillel_app_config';
+const DEV_MODE_PASSWORD = 'Plummer17729!';
+const SS_DEV_UNLOCKED_KEY = 'hillel_dev_unlocked';
 
 export function ConfigProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isDevUnlocked, setIsDevUnlocked] = useState(false);
 
   useEffect(() => {
     try {
@@ -38,9 +44,29 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
         // Default isSandbox to false unless explicitly forced
         setConfig((prev) => ({ ...prev, ...parsed, isSandbox: false }));
       }
+      const unlocked = sessionStorage.getItem(SS_DEV_UNLOCKED_KEY) === 'true';
+      if (unlocked) setIsDevUnlocked(true);
     } catch (_) {}
     setIsLoaded(true);
   }, []);
+
+  const unlockDevMode = (password: string): boolean => {
+    if (password === DEV_MODE_PASSWORD) {
+      setIsDevUnlocked(true);
+      try {
+        sessionStorage.setItem(SS_DEV_UNLOCKED_KEY, 'true');
+      } catch (_) {}
+      return true;
+    }
+    return false;
+  };
+
+  const lockDevMode = () => {
+    setIsDevUnlocked(false);
+    try {
+      sessionStorage.removeItem(SS_DEV_UNLOCKED_KEY);
+    } catch (_) {}
+  };
 
   const updateConfig = (partial: Partial<AppConfig>) => {
     setConfig((prev) => {
@@ -71,6 +97,9 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
         resetConfig,
         isSandbox: config.isSandbox,
         toggleSandbox,
+        isDevUnlocked,
+        unlockDevMode,
+        lockDevMode,
       }}
     >
       {children}

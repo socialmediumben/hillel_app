@@ -1,13 +1,36 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Wrench, Database, CheckCircle2, AlertCircle, RefreshCw, Sparkles, Sliders, ExternalLink, Copy, Check } from 'lucide-react';
+import Link from 'next/link';
+import {
+  Wrench,
+  Database,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  Sparkles,
+  Sliders,
+  ExternalLink,
+  Copy,
+  Check,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Key,
+  LogOut
+} from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
 import { useConfig } from '@/context/ConfigContext';
 import { testSheetConnection } from '@/lib/sheets';
 
 export default function DeveloperPage() {
-  const { config, updateConfig, resetConfig, isSandbox, toggleSandbox } = useConfig();
+  const { config, updateConfig, resetConfig, isSandbox, toggleSandbox, isDevUnlocked, unlockDevMode, lockDevMode } = useConfig();
+
+  // Password gate state
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Local form state
   const [appsScriptUrl, setAppsScriptUrl] = useState(config.appsScriptUrl || '');
@@ -29,6 +52,17 @@ export default function DeveloperPage() {
   } | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
+
+  const handleUnlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = unlockDevMode(passwordInput);
+    if (!success) {
+      setPasswordError(true);
+    } else {
+      setPasswordError(false);
+      setPasswordInput('');
+    }
+  };
 
   const handleTestConnection = async () => {
     setIsTesting(true);
@@ -63,6 +97,79 @@ export default function DeveloperPage() {
     setTimeout(() => setCopiedScript(false), 2000);
   };
 
+  // If developer mode is locked, display password prompt
+  if (!isDevUnlocked) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50">
+        <Navigation />
+
+        <main className="flex-1 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 shadow-xl text-center space-y-6">
+            <div className="w-16 h-16 bg-blue-100 text-blue-700 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <Lock className="w-8 h-8" />
+            </div>
+
+            <div>
+              <h1 className="text-2xl font-black text-slate-900">Admin & Developer Access</h1>
+              <p className="text-xs text-slate-500 font-semibold mt-1.5 leading-relaxed">
+                Developer settings are password-protected. Enter the administrator password to access database connections and terminal configuration.
+              </p>
+            </div>
+
+            <form onSubmit={handleUnlock} className="space-y-4">
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    setPasswordError(false);
+                  }}
+                  placeholder="Enter admin password"
+                  autoFocus
+                  className={`w-full px-4 py-3.5 pr-11 bg-slate-50 border rounded-2xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-none transition-all ${
+                    passwordError ? 'border-rose-400 ring-2 ring-rose-100' : 'border-slate-200 focus:border-blue-600'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {passwordError && (
+                <div className="flex items-center justify-center space-x-1.5 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>Incorrect password. Please try again.</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold rounded-2xl text-sm shadow-md transition-transform active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <Key className="w-4 h-4" />
+                <span>Unlock Developer Mode</span>
+              </button>
+            </form>
+
+            <div className="pt-2">
+              <Link
+                href="/"
+                className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+              >
+                ← Return to Student Hub
+              </Link>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navigation />
@@ -82,23 +189,37 @@ export default function DeveloperPage() {
             </div>
           </div>
 
-          {/* Sandbox Toggle Pill */}
-          <div className="flex items-center space-x-2 bg-slate-100 p-1.5 rounded-2xl self-start sm:self-auto">
+          {/* Sandbox Toggle Pill & Lock Button */}
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <div className="flex items-center space-x-1.5 bg-slate-100 p-1.5 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => updateConfig({ isSandbox: false })}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  !isSandbox ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Live Sheet
+              </button>
+              <button
+                type="button"
+                onClick={() => updateConfig({ isSandbox: true })}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  isSandbox ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Sandbox Mode
+              </button>
+            </div>
+
             <button
-              onClick={() => updateConfig({ isSandbox: false })}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                !isSandbox ? 'bg-blue-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
+              type="button"
+              onClick={lockDevMode}
+              className="flex items-center space-x-1.5 px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl text-xs font-black transition-all cursor-pointer"
+              title="Lock Developer Mode"
             >
-              Live Sheet
-            </button>
-            <button
-              onClick={() => updateConfig({ isSandbox: true })}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                isSandbox ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Sandbox Mode
+              <Lock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Lock Admin Mode</span>
             </button>
           </div>
         </div>

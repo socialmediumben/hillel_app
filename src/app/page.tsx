@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Calendar, User, Monitor, Sparkles, Clock, MapPin, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Calendar, User, Monitor, Sparkles, Clock, MapPin, ArrowRight, CheckCircle2, Lock } from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useConfig } from '@/context/ConfigContext';
@@ -219,8 +219,14 @@ export default function HomePage() {
         </div>
       </main>
 
-      <footer className="py-6 text-center text-xs font-semibold text-slate-400 border-t border-slate-200 bg-white">
-        {config.orgName} • {config.campusName}
+      <footer className="py-6 text-xs font-semibold text-slate-400 border-t border-slate-200 bg-white">
+        <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>{config.orgName} • {config.campusName}</span>
+          <Link href="/developer" className="hover:text-slate-600 transition-colors flex items-center space-x-1.5">
+            <Lock className="w-3 h-3 text-slate-400" />
+            <span>Admin & Developer Mode</span>
+          </Link>
+        </div>
       </footer>
     </div>
   );

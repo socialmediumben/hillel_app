@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Calendar, User, Monitor, Wrench, Sparkles, LogOut } from 'lucide-react';
+import { Calendar, User, Monitor, Wrench, Sparkles, LogOut, Lock, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useConfig } from '@/context/ConfigContext';
 import { getStudentDisplayName } from '@/lib/types';
@@ -11,20 +11,22 @@ import { getStudentDisplayName } from '@/lib/types';
 export function Navigation() {
   const pathname = usePathname();
   const { student, logout } = useAuth();
-  const { config } = useConfig();
+  const { config, isDevUnlocked, lockDevMode } = useConfig();
 
   // If in dedicated fullscreen kiosk mode, hide standard app navigation
   if (pathname === '/kiosk' || pathname === '/kiosk/') {
     return null;
   }
 
-  const navLinks = [
+  const baseNavLinks = [
     { href: '/', label: 'Home', icon: Sparkles },
     { href: '/events', label: 'Events', icon: Calendar },
     { href: '/profile', label: 'Profile', icon: User },
     { href: '/kiosk', label: 'Kiosk', icon: Monitor },
-    { href: '/developer', label: 'Developer', icon: Wrench },
   ];
+
+  const adminLink = { href: '/developer', label: 'Admin', icon: Wrench };
+  const navLinks = isDevUnlocked ? [...baseNavLinks, adminLink] : baseNavLinks;
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
@@ -68,6 +70,28 @@ export function Navigation() {
 
         {/* User Status / Login Badge */}
         <div className="flex items-center space-x-2">
+          {isDevUnlocked ? (
+            <div className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl text-xs font-bold">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <Link href="/developer" className="hover:underline">Admin Mode</Link>
+              <button
+                onClick={lockDevMode}
+                title="Lock Admin Mode"
+                className="ml-1 text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/developer"
+              title="Admin Mode"
+              className="p-2 text-slate-300 hover:text-slate-500 rounded-xl hover:bg-slate-100 transition-colors"
+            >
+              <Lock className="w-3.5 h-3.5" />
+            </Link>
+          )}
+
           {student ? (
             <div className="flex items-center space-x-2">
               <Link
