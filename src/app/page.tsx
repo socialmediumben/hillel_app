@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Calendar,
@@ -27,8 +27,8 @@ import { Navigation } from '@/components/Navigation';
 import { useConfig } from '@/context/ConfigContext';
 import { useAuth } from '@/context/AuthContext';
 import { AppEvent, StudentProfile, getStudentDisplayName, isEventToday, isEventUpcomingOrToday } from '@/lib/types';
-import { fetchEvents, recordEventRsvp, searchStudents, getStudentByCard, updateStudentProfile } from '@/lib/sheets';
-import { isWebNfcSupported, startNfcScanner, triggerHapticFeedback, playSuccessChime } from '@/lib/hardware';
+import { fetchEvents, recordEventRsvp, searchStudents, getStudentByCard, updateStudentProfile, linkCardToStudent } from '@/lib/sheets';
+import { isWebNfcSupported, startNfcScanner, triggerHapticFeedback, playSuccessChime, normalizeNfcTapCard } from '@/lib/hardware';
 
 const COMMON_DIETARY = [
   'Strictly Kosher',
@@ -97,6 +97,15 @@ export default function HomePage() {
   const [editInterests, setEditInterests] = useState<string[]>([]);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
+  // Link / Update Card State (Inside Profile Tab)
+  const [isLinkingCard, setIsLinkingCard] = useState(false);
+  const [newCardInput, setNewCardInput] = useState('');
+  const [isLinkingLoading, setIsLinkingLoading] = useState(false);
+  const [linkCardSuccessMsg, setLinkCardSuccessMsg] = useState<string | null>(null);
+  const [linkCardErrorMsg, setLinkCardErrorMsg] = useState<string | null>(null);
+  const [isProfileNfcActive, setIsProfileNfcActive] = useState(false);
+  const stopProfileNfcRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     setIsNfcSupported(isWebNfcSupported());
@@ -274,6 +283,89 @@ export default function HomePage() {
     setEditInterests((prev) =>
       prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
     );
+  };
+
+  // Card Linking Handlers for Profile Module
+  useEffect(() => {
+    return () => {
+      if (stopProfileNfcRef.current) stopProfileNfcRef.current();
+    };
+  }, []);
+
+  const handleActivateProfileNfc = async () => {
+    setLinkCardErrorMsg(null);
+    setLinkCardSuccessMsg(null);
+    try {
+      const stop = await startNfcScanner({
+        onScan: async (scanned) => {
+          const norm = normalizeNfcTapCard(scanned);
+          setNewCardInput(norm);
+          await handleSaveCardLink(norm);
+        },
+        onError: () => setIsProfileNfcActive(false),
+      });
+      stopProfileNfcRef.current = stop;
+      setIsProfileNfcActive(true);
+    } catch (err: any) {
+      setLinkCardErrorMsg(err.message || 'Could not start phone NFC scanner.');
+      setIsProfileNfcActive(false);
+    }
+  };
+
+  const handleSaveCardLink = async (cardToLink?: string) => {
+    if (!student) return;
+    const cardId = normalizeNfcTapCard(cardToLink !== undefined ? cardToLink : newCardInput);
+    if (!cardId) {
+      setLinkCardErrorMsg('Please tap a card or type a Card UID.');
+      return;
+    }
+
+    setIsLinkingLoading(true);
+    setLinkCardErrorMsg(null);
+    setLinkCardSuccessMsg(null);
+
+    try {
+      const res = await linkCardToStudent(student.id, cardId, config);
+      if (res.success) {
+        await updateStudent({ tapCard: cardId });
+        setLinkCardSuccessMsg(`Tap card ${cardId} successfully linked to your profile!`);
+        setNewCardInput('');
+        triggerHapticFeedback();
+        playSuccessChime();
+        if (stopProfileNfcRef.current) {
+          stopProfileNfcRef.current();
+          stopProfileNfcRef.current = null;
+          setIsProfileNfcActive(false);
+        }
+      } else {
+        setLinkCardErrorMsg(res.error || 'Failed to link card to account.');
+      }
+    } catch (err: any) {
+      setLinkCardErrorMsg(err.message || 'Error communicating with server.');
+    } finally {
+      setIsLinkingLoading(false);
+    }
+  };
+
+  const handleUnlinkCard = async () => {
+    if (!student) return;
+    if (!window.confirm('Are you sure you want to unlink your physical tap card?')) return;
+    setIsLinkingLoading(true);
+    setLinkCardErrorMsg(null);
+    setLinkCardSuccessMsg(null);
+    try {
+      const res = await linkCardToStudent(student.id, '', config);
+      if (res.success) {
+        await updateStudent({ tapCard: '' });
+        setLinkCardSuccessMsg('Card unlinked from your account.');
+      } else {
+        setLinkCardErrorMsg(res.error || 'Failed to unlink card.');
+      }
+    } catch (err: any) {
+      setLinkCardErrorMsg(err.message || 'Error unlinking card.');
+    } finally {
+      setIsLinkingLoading(false);
+    }
   };
 
   const categories = ['All', 'Shabbat', 'Social', 'Learning', 'Tikkun Olam'];
@@ -555,11 +647,32 @@ export default function HomePage() {
                       </p>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setIsEditingProfile(!isEditingProfile)}
-                        className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-bold text-white transition-colors flex items-center space-x-1.5 cursor-pointer"
+                        onClick={() => {
+                          setIsLinkingCard(!isLinkingCard);
+                          setIsEditingProfile(false);
+                          setLinkCardSuccessMsg(null);
+                          setLinkCardErrorMsg(null);
+                        }}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center space-x-1.5 cursor-pointer shadow-sm active:scale-95 ${
+                          isLinkingCard
+                            ? 'bg-blue-600 text-white border border-blue-400'
+                            : 'bg-white text-blue-900 hover:bg-blue-50 border border-white/30'
+                        }`}
+                      >
+                        <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                        <span>{student.tapCard ? 'Update Tap Card' : 'Link Tap Card'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsEditingProfile(!isEditingProfile);
+                          setIsLinkingCard(false);
+                        }}
+                        className="px-3.5 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-bold text-white transition-colors flex items-center space-x-1.5 cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                         <span>{isEditingProfile ? 'Cancel Edit' : 'Edit Information'}</span>
@@ -578,7 +691,21 @@ export default function HomePage() {
                     </div>
                     <div>
                       <span className="text-blue-300 text-[10px] uppercase font-black block">Tap Card</span>
-                      <span>{student.tapCard || 'None linked'}</span>
+                      <div className="flex items-center space-x-1.5 mt-0.5">
+                        <span className="font-bold">{student.tapCard || 'None linked'}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsLinkingCard(true);
+                            setIsEditingProfile(false);
+                            setLinkCardSuccessMsg(null);
+                            setLinkCardErrorMsg(null);
+                          }}
+                          className="text-[10px] text-blue-200 hover:text-white underline font-extrabold cursor-pointer"
+                        >
+                          {student.tapCard ? 'Change' : 'Link'}
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <span className="text-blue-300 text-[10px] uppercase font-black block">Email</span>
@@ -586,6 +713,132 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Link / Update Tap Card Module (Toggled via Link / Update Tap Card button) */}
+                {isLinkingCard && (
+                  <div className="bg-white p-6 sm:p-8 rounded-3xl border-2 border-blue-500 shadow-md space-y-5 animate-fade-in">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-black">
+                          <CreditCard className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg sm:text-xl font-black text-slate-900">
+                            {student.tapCard ? 'Update Your Tap Card' : 'Link a New Tap Card'}
+                          </h3>
+                          <p className="text-xs text-slate-500 font-semibold">
+                            {student.tapCard
+                              ? `Currently linked to card ID: ${student.tapCard}. Tapping or typing a new card will update it.`
+                              : 'Link a physical card, wristband, or tag to enable 1-second front-desk check-in!'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsLinkingCard(false);
+                          if (stopProfileNfcRef.current) {
+                            stopProfileNfcRef.current();
+                            stopProfileNfcRef.current = null;
+                            setIsProfileNfcActive(false);
+                          }
+                        }}
+                        className="text-xs font-bold text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                      >
+                        ✕ Close
+                      </button>
+                    </div>
+
+                    {/* Success / Error Banners */}
+                    {linkCardSuccessMsg && (
+                      <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3.5 rounded-2xl text-xs font-bold flex items-center space-x-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span>{linkCardSuccessMsg}</span>
+                      </div>
+                    )}
+                    {linkCardErrorMsg && (
+                      <div className="bg-rose-50 border border-rose-300 text-rose-800 p-3.5 rounded-2xl text-xs font-bold flex items-center space-x-2">
+                        <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                        <span>{linkCardErrorMsg}</span>
+                      </div>
+                    )}
+
+                    {/* Method 1: Phone NFC Tap */}
+                    {isWebNfcSupported() && (
+                      <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
+                        <div className="flex items-center space-x-2 text-xs font-black text-blue-900 uppercase tracking-wider">
+                          <Smartphone className="w-4 h-4 text-blue-600" />
+                          <span>Option 1: Phone NFC Tap (Android Chrome)</span>
+                        </div>
+                        {!isProfileNfcActive ? (
+                          <button
+                            type="button"
+                            onClick={handleActivateProfileNfc}
+                            disabled={isLinkingLoading}
+                            className="w-full py-3 bg-blue-700 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer active:scale-95"
+                          >
+                            <Smartphone className="w-4 h-4" />
+                            <span>Tap Card to Back of Phone</span>
+                          </button>
+                        ) : (
+                          <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-900 text-xs font-black flex items-center justify-center space-x-2 animate-pulse">
+                            <Radio className="w-4 h-4 text-emerald-700 animate-spin" />
+                            <span>Ready to link! Hold physical card against the back of your phone now...</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Method 2: Manual Card UID Entry */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                        {isWebNfcSupported() ? 'Option 2: Enter Card UID or Tap ID' : 'Enter Card UID or Tap ID'}
+                      </label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={newCardInput}
+                            onChange={(e) => setNewCardInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSaveCardLink()}
+                            placeholder="e.g. 1414309466 or 04A23B4C"
+                            className="w-full px-4 py-3 pl-11 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs focus:bg-white focus:border-blue-600 focus:outline-none"
+                          />
+                          <CreditCard className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveCardLink()}
+                          disabled={isLinkingLoading || !newCardInput.trim()}
+                          className="px-6 py-3 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-black rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center space-x-2"
+                        >
+                          {isLinkingLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          <span>Save & Link Card</span>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium">
+                        You can find the UID printed on your card or by scanning it at any Hillel kiosk scanner.
+                      </p>
+                    </div>
+
+                    {/* Unlink Option if already linked */}
+                    {student.tapCard && (
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-xs text-slate-400 font-semibold">
+                          Lost your physical card or want to disconnect it?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleUnlinkCard}
+                          disabled={isLinkingLoading}
+                          className="text-xs font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
+                        >
+                          Unlink Current Card
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Edit Profile Form (Toggled via Edit Information) */}
                 {isEditingProfile ? (
