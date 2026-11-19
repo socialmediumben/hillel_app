@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { CreditCard, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CreditCard, CheckCircle2, AlertCircle, RefreshCw, Smartphone, Radio } from 'lucide-react';
 import { StudentProfile } from '@/lib/types';
 import { useConfig } from '@/context/ConfigContext';
 import { linkCardToStudent } from '@/lib/sheets';
@@ -18,31 +18,33 @@ export function KioskCardLink({ student, onCardUpdated }: KioskCardLinkProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isNfcListening, setIsNfcListening] = useState(false);
+  const [isNfcActive, setIsNfcActive] = useState(false);
+  const stopNfcRef = useRef<(() => void) | null>(null);
 
-  // Background Web NFC scanning for quick badge tapping
-  useEffect(() => {
-    let stopListening: (() => void) | null = null;
-
-    if (isWebNfcSupported()) {
-      startNfcScanner({
+  const handleActivatePhoneNfc = async () => {
+    setErrorMsg(null);
+    try {
+      const stop = await startNfcScanner({
         onScan: (scanned) => {
-          setInputCard(scanned);
-          handleLink(scanned);
+          const norm = normalizeNfcTapCard(scanned);
+          setInputCard(norm);
+          handleLink(norm);
         },
-        onError: () => setIsNfcListening(false),
-      })
-        .then((cleanup) => {
-          stopListening = cleanup;
-          setIsNfcListening(true);
-        })
-        .catch(() => setIsNfcListening(false));
+        onError: () => setIsNfcActive(false),
+      });
+      stopNfcRef.current = stop;
+      setIsNfcActive(true);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Could not start phone NFC.');
+      setIsNfcActive(false);
     }
+  };
 
+  useEffect(() => {
     return () => {
-      if (stopListening) stopListening();
+      if (stopNfcRef.current) stopNfcRef.current();
     };
-  }, [student.id]);
+  }, []);
 
   const handleLink = async (cardToLink?: string) => {
     const cardId = normalizeNfcTapCard(cardToLink || inputCard);
@@ -85,30 +87,45 @@ export function KioskCardLink({ student, onCardUpdated }: KioskCardLinkProps) {
       </div>
 
       <div className="space-y-3">
+        {/* Phone NFC Tap Button */}
+        {isWebNfcSupported() && (
+          <div>
+            {!isNfcActive ? (
+              <button
+                type="button"
+                onClick={handleActivatePhoneNfc}
+                className="w-full py-2.5 px-4 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-colors cursor-pointer"
+              >
+                <Smartphone className="w-4 h-4" />
+                <span>📱 Tap Card to Back of Phone to Link</span>
+              </button>
+            ) : (
+              <div className="bg-emerald-50 border border-emerald-300 p-2.5 rounded-xl text-xs font-bold text-emerald-800 flex items-center justify-center space-x-1.5 animate-pulse">
+                <Radio className="w-4 h-4 text-emerald-600 animate-spin" />
+                <span>Ready to link! Hold card to back of phone.</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Text Input / External Reader */}
         <div className="flex gap-2">
           <input
             type="text"
             value={inputCard}
             onChange={(e) => setInputCard(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleLink()}
-            placeholder={isNfcListening ? 'Tap card to reader or type ID...' : 'Enter Card UID or Student ID...'}
-            className="flex-1 px-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-800 text-sm font-bold focus:outline-none focus:border-indigo-500"
+            placeholder="Or type Card UID / Student ID..."
+            className="flex-1 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 text-xs font-bold focus:outline-none focus:border-indigo-500"
           />
           <button
             onClick={() => handleLink()}
             disabled={isLoading}
-            className="px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
           >
-            {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Link Card'}
+            {isLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Link Card'}
           </button>
         </div>
-
-        {isNfcListening && (
-          <p className="text-[11px] font-semibold text-emerald-600 flex items-center space-x-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block mr-1" />
-            NFC card reader active — ready to tap your card.
-          </p>
-        )}
 
         {successMsg && (
           <div className="flex items-center space-x-2 text-emerald-700 bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs font-bold">
