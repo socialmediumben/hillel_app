@@ -6,7 +6,7 @@ import { Calendar, Clock, MapPin, Check, Filter, Sparkles, AlertCircle } from 'l
 import { Navigation } from '@/components/Navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useConfig } from '@/context/ConfigContext';
-import { AppEvent } from '@/lib/types';
+import { AppEvent, isEventToday, isEventUpcomingOrToday } from '@/lib/types';
 import { fetchEvents, recordEventRsvp } from '@/lib/sheets';
 import { getTodayDateString } from '@/lib/sandbox';
 
@@ -129,8 +129,8 @@ export default function EventsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {filteredEvents.map((evt) => {
               const isRsvpd = rsvpdEventIds.has(evt.id);
-              const isToday = evt.date === todayStr;
-              const isPast = evt.date < todayStr;
+              const isToday = isEventToday(evt.date);
+              const isPast = !isEventUpcomingOrToday(evt.date) && !isToday;
 
               return (
                 <div

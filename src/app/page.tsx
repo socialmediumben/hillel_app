@@ -6,7 +6,7 @@ import { Calendar, User, Monitor, Sparkles, Clock, MapPin, ArrowRight, CheckCirc
 import { Navigation } from '@/components/Navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useConfig } from '@/context/ConfigContext';
-import { AppEvent, getStudentDisplayName } from '@/lib/types';
+import { AppEvent, getStudentDisplayName, isEventUpcomingOrToday } from '@/lib/types';
 import { fetchEvents, recordEventRsvp } from '@/lib/sheets';
 import { getTodayDateString } from '@/lib/sandbox';
 
@@ -26,7 +26,7 @@ export default function HomePage() {
       .finally(() => setIsLoadingEvents(false));
   }, [config]);
 
-  const upcomingEvents = events.filter((e) => e.active && e.date >= todayStr).slice(0, 3);
+  const upcomingEvents = events.filter((e) => e.active && isEventUpcomingOrToday(e.date)).slice(0, 3);
 
   const handleQuickRsvp = async (event: AppEvent) => {
     if (!student) return;

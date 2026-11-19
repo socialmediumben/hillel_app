@@ -202,40 +202,140 @@ function doPost(e) {
 }
 
 // =========================================================================
+// =========================================================================
 // DATA ACCESS HELPERS
 // =========================================================================
 
+function findEventsSheet(ss) {
+  var direct = ss.getSheetByName('App Events') || ss.getSheetByName('Events') || ss.getSheetByName('App_Events');
+  if (direct) return direct;
+  var allSheets = ss.getSheets();
+  for (var i = 0; i < allSheets.length; i++) {
+    var name = allSheets[i].getName().toLowerCase();
+    if (name.indexOf('event') !== -1) return allSheets[i];
+  }
+  return null;
+}
+
+function normalizeDateValue(raw) {
+  if (!raw) return '';
+  if (raw instanceof Date) {
+    return Utilities.formatDate(raw, Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyy-MM-dd');
+  }
+  var str = String(raw).trim();
+  // Match MM/DD/YYYY or M/D/YYYY
+  var m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) {
+    var mm = ('0' + m[1]).slice(-2);
+    var dd = ('0' + m[2]).slice(-2);
+    return m[3] + '-' + mm + '-' + dd;
+  }
+  // Match YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+  // Fallback to JS Date parse
+  var parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    var yyyy = parsed.getFullYear();
+    var month = ('0' + (parsed.getMonth() + 1)).slice(-2);
+    var day = ('0' + parsed.getDate()).slice(-2);
+    return yyyy + '-' + month + '-' + day;
+  }
+  return str;
+}
+
 function fetchEventsFromSheet() {
   var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName('App Events');
+  var sheet = findEventsSheet(ss);
   if (!sheet) return [];
 
   var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
 
+  // Inspect headers in row 0
+  var headerRow = data[0];
+  var colMap = {};
+  for (var c = 0; c < headerRow.length; c++) {
+    var h = String(headerRow[c] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (colMap['title'] === undefined && (h === 'title' || h === 'event' || h === 'eventname' || h === 'eventtitle' || h === 'name')) {
+      colMap['title'] = c;
+    } else if (colMap['date'] === undefined && (h === 'date' || h === 'eventdate' || h === 'day')) {
+      colMap['date'] = c;
+    } else if (colMap['startTime'] === undefined && (h === 'starttime' || h === 'start' || h === 'time' || h === 'starts')) {
+      colMap['startTime'] = c;
+    } else if (colMap['endTime'] === undefined && (h === 'endtime' || h === 'end' || h === 'ends')) {
+      colMap['endTime'] = c;
+    } else if (colMap['location'] === undefined && (h === 'location' || h === 'room' || h === 'place' || h === 'venue')) {
+      colMap['location'] = c;
+    } else if (colMap['description'] === undefined && (h === 'description' || h === 'desc' || h === 'details' || h === 'notes')) {
+      colMap['description'] = c;
+    } else if (colMap['category'] === undefined && (h === 'category' || h === 'type' || h === 'tag' || h === 'tags')) {
+      colMap['category'] = c;
+    } else if (colMap['id'] === undefined && (h === 'id' || h === 'eventid')) {
+      colMap['id'] = c;
+    } else if (colMap['active'] === undefined && (h === 'active' || h === 'status' || h === 'isactive')) {
+      colMap['active'] = c;
+    }
+  }
+
+  // Fallbacks if headers weren't named with recognizable labels:
+  if (colMap['title'] === undefined) {
+    var row1Col1 = String(data[1] ? data[1][1] : '');
+    if (row1Col1.indexOf('/') !== -1 || row1Col1.indexOf('-') !== -1 || (data[1] && data[1][1] instanceof Date)) {
+      colMap['title'] = 0;
+      colMap['date'] = 1;
+    } else {
+      colMap['id'] = 0;
+      colMap['title'] = 1;
+      colMap['date'] = 2;
+    }
+  }
+  if (colMap['date'] === undefined) colMap['date'] = 2;
+  if (colMap['startTime'] === undefined) colMap['startTime'] = 3;
+  if (colMap['endTime'] === undefined) colMap['endTime'] = 4;
+  if (colMap['location'] === undefined) colMap['location'] = 5;
+  if (colMap['description'] === undefined) colMap['description'] = 6;
+  if (colMap['category'] === undefined) colMap['category'] = 7;
+  if (colMap['id'] === undefined) colMap['id'] = 0;
+
   var events = [];
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var activeVal = String(row[8]).toLowerCase();
-    var isActive = activeVal === 'true' || activeVal === 'yes' || row[8] === true;
+    var titleVal = String(row[colMap['title']] || '').trim();
+    if (!titleVal) continue; // Skip blank rows
 
-    var dateVal = row[2];
-    var formattedDate = '';
-    if (dateVal instanceof Date) {
-      formattedDate = Utilities.formatDate(dateVal, Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyy-MM-dd');
-    } else {
-      formattedDate = String(dateVal || '').trim();
+    // Active status: default to TRUE unless explicitly false, no, inactive, 0
+    var isActive = true;
+    if (colMap['active'] !== undefined && row[colMap['active']] !== undefined && row[colMap['active']] !== '') {
+      var activeVal = String(row[colMap['active']]).toLowerCase().trim();
+      if (activeVal === 'false' || activeVal === 'no' || activeVal === 'inactive' || activeVal === '0') {
+        isActive = false;
+      }
     }
 
+    var rawDate = row[colMap['date']];
+    var formattedDate = normalizeDateValue(rawDate);
+
+    var formatTime = function(val) {
+      if (!val) return '';
+      if (val instanceof Date) {
+        return Utilities.formatDate(val, Session.getScriptTimeZone() || 'America/Los_Angeles', 'hh:mm a');
+      }
+      return String(val).trim();
+    };
+
+    var idVal = colMap['id'] !== undefined && row[colMap['id']] ? String(row[colMap['id']]).trim() : ('evt-' + i);
+
     events.push({
-      id: String(row[0] || 'evt-' + i),
-      title: String(row[1] || ''),
+      id: idVal,
+      title: titleVal,
       date: formattedDate,
-      startTime: String(row[3] || ''),
-      endTime: String(row[4] || ''),
-      location: String(row[5] || ''),
-      description: String(row[6] || ''),
-      category: String(row[7] || ''),
+      startTime: formatTime(row[colMap['startTime']]),
+      endTime: formatTime(row[colMap['endTime']]),
+      location: String(row[colMap['location']] || '').trim(),
+      description: String(row[colMap['description']] || '').trim(),
+      category: String(row[colMap['category']] || '').trim(),
       active: isActive
     });
   }

@@ -2,10 +2,9 @@
 
 import React, { useState } from 'react';
 import { Calendar, Clock, MapPin, Check, Sparkles } from 'lucide-react';
-import { StudentProfile, AppEvent } from '@/lib/types';
+import { StudentProfile, AppEvent, isEventUpcomingOrToday } from '@/lib/types';
 import { useConfig } from '@/context/ConfigContext';
 import { recordEventRsvp } from '@/lib/sheets';
-import { getTodayDateString } from '@/lib/sandbox';
 
 interface KioskEventRsvpProps {
   student: StudentProfile;
@@ -17,8 +16,7 @@ export function KioskEventRsvp({ student, events }: KioskEventRsvpProps) {
   const [rsvpdEventIds, setRsvpdEventIds] = useState<Set<string>>(new Set());
   const [loadingEventId, setLoadingEventId] = useState<string | null>(null);
 
-  const todayStr = getTodayDateString();
-  const upcomingEvents = events.filter((e) => e.active && e.date >= todayStr);
+  const upcomingEvents = events.filter((e) => e.active && isEventUpcomingOrToday(e.date));
 
   const handleRsvp = async (event: AppEvent) => {
     if (rsvpdEventIds.has(event.id) || loadingEventId) return;

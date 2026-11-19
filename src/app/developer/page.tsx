@@ -20,7 +20,13 @@ export default function DeveloperPage() {
 
   // Connection testing state
   const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string; sheetName?: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    message: string;
+    sheetName?: string;
+    eventCount?: number;
+    eventTitles?: string[];
+  } | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [copiedScript, setCopiedScript] = useState(false);
 

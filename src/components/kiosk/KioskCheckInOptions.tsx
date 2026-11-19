@@ -2,10 +2,9 @@
 
 import React, { useState } from 'react';
 import { CheckCircle2, Calendar, Clock, MapPin } from 'lucide-react';
-import { StudentProfile, AppEvent } from '@/lib/types';
+import { StudentProfile, AppEvent, isEventToday } from '@/lib/types';
 import { useConfig } from '@/context/ConfigContext';
 import { recordCheckIn } from '@/lib/sheets';
-import { getTodayDateString } from '@/lib/sandbox';
 
 interface KioskCheckInOptionsProps {
   student: StudentProfile;
@@ -18,8 +17,7 @@ export function KioskCheckInOptions({ student, events, onCheckedIn }: KioskCheck
   const [checkedInEvents, setCheckedInEvents] = useState<Set<string>>(new Set());
   const [loadingEventId, setLoadingEventId] = useState<string | null>(null);
 
-  const todayStr = getTodayDateString();
-  const todaysEvents = events.filter((e) => e.active && e.date === todayStr);
+  const todaysEvents = events.filter((e) => e.active && isEventToday(e.date));
 
   const handleCheckIn = async (eventId: string, eventTitle: string) => {
     if (checkedInEvents.has(eventId) || loadingEventId) return;

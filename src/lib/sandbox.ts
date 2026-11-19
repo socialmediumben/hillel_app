@@ -18,7 +18,7 @@ export function getUpcomingDateString(daysAhead: number): string {
   return `${year}-${month}-${day}`;
 }
 
-// Clean empty starter defaults: no fake students or fake events
+// Clean empty starter defaults: absolutely no fake students or fake events
 export const INITIAL_SANDBOX_STUDENTS: StudentProfile[] = [];
 export const INITIAL_SANDBOX_EVENTS: AppEvent[] = [];
 
@@ -28,11 +28,48 @@ const LS_EVENTS_KEY = 'hillel_sandbox_events';
 const LS_CHECKINS_KEY = 'hillel_sandbox_checkins';
 const LS_RSVPS_KEY = 'hillel_sandbox_rsvps';
 
+/**
+ * Permanently purges any legacy demo/mock data that may have been cached
+ * in the user's browser local storage from early versions.
+ */
+export function purgeLegacyTestData(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const rawEvents = localStorage.getItem(LS_EVENTS_KEY);
+    if (rawEvents && (
+      rawEvents.includes('evt-shabbat') ||
+      rawEvents.includes('evt-bagel') ||
+      rawEvents.includes('evt-jlf') ||
+      rawEvents.includes('evt-tikkun') ||
+      rawEvents.includes('Community Shabbat Dinner') ||
+      rawEvents.includes('Sunday Bagels & Schmear')
+    )) {
+      localStorage.removeItem(LS_EVENTS_KEY);
+    }
+
+    const rawStudents = localStorage.getItem(LS_STUDENTS_KEY);
+    if (rawStudents && (
+      rawStudents.includes('HIL-1001') ||
+      rawStudents.includes('Jordan') ||
+      rawStudents.includes('Taylor') ||
+      rawStudents.includes('Sarah Levine')
+    )) {
+      localStorage.removeItem(LS_STUDENTS_KEY);
+    }
+  } catch (_) {}
+}
+
 export function getSandboxStudents(): StudentProfile[] {
   if (typeof window === 'undefined') return [];
   try {
+    purgeLegacyTestData();
     const cached = localStorage.getItem(LS_STUDENTS_KEY);
-    if (cached) return JSON.parse(cached);
+    if (cached) {
+      const parsed: StudentProfile[] = JSON.parse(cached);
+      return parsed.filter(
+        (s) => s.id !== 'HIL-1001' && s.id !== 'HIL-1002' && s.id !== 'HIL-1003' && s.lastName !== 'Taylor' && s.lastName !== 'Levine'
+      );
+    }
   } catch (_) {}
   return [];
 }
@@ -47,8 +84,20 @@ export function saveSandboxStudents(students: StudentProfile[]): void {
 export function getSandboxEvents(): AppEvent[] {
   if (typeof window === 'undefined') return [];
   try {
+    purgeLegacyTestData();
     const cached = localStorage.getItem(LS_EVENTS_KEY);
-    if (cached) return JSON.parse(cached);
+    if (cached) {
+      const parsed: AppEvent[] = JSON.parse(cached);
+      return parsed.filter(
+        (e) => !e.id?.startsWith('evt-shabbat') &&
+               !e.id?.startsWith('evt-bagel') &&
+               !e.id?.startsWith('evt-jlf') &&
+               !e.id?.startsWith('evt-tikkun') &&
+               !e.id?.startsWith('evt-next-shabbat') &&
+               e.title !== 'Community Shabbat Dinner' &&
+               e.title !== 'Sunday Bagels & Schmear'
+      );
+    }
   } catch (_) {}
   return [];
 }
@@ -98,3 +147,4 @@ export function saveSandboxRsvp(record: EventRsvpRecord): void {
     localStorage.setItem(LS_RSVPS_KEY, JSON.stringify(filtered));
   } catch (_) {}
 }
+

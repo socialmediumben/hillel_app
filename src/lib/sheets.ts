@@ -1,4 +1,4 @@
-import { StudentProfile, AppEvent, CheckInRecord, EventRsvpRecord, AppConfig } from './types';
+import { StudentProfile, AppEvent, CheckInRecord, EventRsvpRecord, AppConfig, normalizeDate } from './types';
 import {
   getSandboxStudents,
   saveSandboxStudents,
@@ -19,23 +19,53 @@ export interface ApiResponse<T = any> {
 }
 
 /**
- * Tests connection to Google Apps Script endpoint
+ * Tests connection to Google Apps Script endpoint and verifies events tab
  */
-export async function testSheetConnection(appsScriptUrl: string): Promise<{ ok: boolean; message: string; sheetName?: string }> {
+export async function testSheetConnection(appsScriptUrl: string): Promise<{
+  ok: boolean;
+  message: string;
+  sheetName?: string;
+  eventCount?: number;
+  eventTitles?: string[];
+}> {
   if (!appsScriptUrl || !appsScriptUrl.trim()) {
     return { ok: false, message: 'Google Apps Script URL is empty.' };
   }
   try {
-    const url = `${appsScriptUrl.trim()}${appsScriptUrl.includes('?') ? '&' : '?'}action=ping&t=${Date.now()}`;
-    const res = await fetch(url);
+    const pingUrl = `${appsScriptUrl.trim()}${appsScriptUrl.includes('?') ? '&' : '?'}action=ping&t=${Date.now()}`;
+    const res = await fetch(pingUrl);
     if (!res.ok) {
       return { ok: false, message: `HTTP Error: ${res.status} ${res.statusText}` };
     }
     const data = await res.json();
-    if (data.status === 'success') {
-      return { ok: true, message: data.message || 'Connected successfully!', sheetName: data.sheetName };
+    if (data.status !== 'success') {
+      return { ok: false, message: data.message || 'Error response from Google Apps Script.' };
     }
-    return { ok: false, message: data.message || 'Error response from Google Apps Script.' };
+
+    // Also test event fetching directly
+    let eventCount = 0;
+    let eventTitles: string[] = [];
+    try {
+      const eventsUrl = `${appsScriptUrl.trim()}${appsScriptUrl.includes('?') ? '&' : '?'}action=get_events&t=${Date.now()}`;
+      const evRes = await fetch(eventsUrl);
+      if (evRes.ok) {
+        const evData = await evRes.json();
+        if (evData.status === 'success' && Array.isArray(evData.events)) {
+          eventCount = evData.events.length;
+          eventTitles = evData.events.map((e: any) => e.title).filter(Boolean);
+        }
+      }
+    } catch (_) {}
+
+    return {
+      ok: true,
+      message: eventCount > 0
+        ? `Connected to "${data.sheetName || 'Sheet'}"! Found ${eventCount} event(s): ${eventTitles.slice(0, 3).join(', ')}${eventTitles.length > 3 ? '...' : ''}`
+        : `Connected to "${data.sheetName || 'Sheet'}", but 0 events found in 'App Events' tab.`,
+      sheetName: data.sheetName,
+      eventCount,
+      eventTitles,
+    };
   } catch (err: any) {
     return { ok: false, message: err.message || 'Network request failed.' };
   }
@@ -45,8 +75,12 @@ export async function testSheetConnection(appsScriptUrl: string): Promise<{ ok: 
  * Fetch events directly from Google Sheet 'App Events' tab
  */
 export async function fetchEvents(config: AppConfig): Promise<AppEvent[]> {
-  if (!config.appsScriptUrl) {
+  if (config.isSandbox) {
     return getSandboxEvents();
+  }
+
+  if (!config.appsScriptUrl) {
+    return [];
   }
 
   try {
@@ -55,7 +89,11 @@ export async function fetchEvents(config: AppConfig): Promise<AppEvent[]> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (data.status === 'success' && Array.isArray(data.events)) {
-      return data.events;
+      return data.events.map((e: any) => ({
+        ...e,
+        date: normalizeDate(e.date),
+        active: e.active !== false && String(e.active).toLowerCase() !== 'false',
+      }));
     }
     return [];
   } catch (err) {
@@ -70,7 +108,7 @@ export async function fetchEvents(config: AppConfig): Promise<AppEvent[]> {
 export async function searchStudents(query: string, config: AppConfig): Promise<StudentProfile[]> {
   const cleanQ = query.trim().toLowerCase();
 
-  if (!config.appsScriptUrl) {
+  if (config.isSandbox) {
     const all = getSandboxStudents();
     if (!cleanQ) return all;
     return all.filter((s) => {
@@ -81,6 +119,10 @@ export async function searchStudents(query: string, config: AppConfig): Promise<
       const matchId = s.id.toLowerCase().includes(cleanQ);
       return matchName || matchCard || matchEmail || matchId;
     });
+  }
+
+  if (!config.appsScriptUrl) {
+    return [];
   }
 
   try {
