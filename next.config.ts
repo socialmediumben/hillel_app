@@ -1,17 +1,10 @@
 import type { NextConfig } from 'next';
-import fs from 'fs';
-import path from 'path';
 
-// If a custom domain CNAME is present, GitHub Pages serves from root ('')
-// Otherwise, on socialmediumben.github.io/hillel_app/ it uses '/hillel_app'
-const hasCname = fs.existsSync(path.join(__dirname, 'public', 'CNAME')) || fs.existsSync(path.join(__dirname, 'CNAME'));
-const isProd = process.env.NODE_ENV === 'production';
-const basePath = hasCname ? '' : (process.env.NEXT_PUBLIC_BASE_PATH ?? (isProd ? '/hillel_app' : ''));
-
+// Custom domain app.hillel818.org is active, so basePath is root ''
 const nextConfig: NextConfig = {
   output: 'export',
   trailingSlash: true,
-  basePath,
+  basePath: '',
   images: {
     unoptimized: true,
   },

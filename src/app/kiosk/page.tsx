@@ -12,7 +12,7 @@ import { KioskNametag } from '@/components/kiosk/KioskNametag';
 import { KioskCheckInOptions } from '@/components/kiosk/KioskCheckInOptions';
 import { KioskEventRsvp } from '@/components/kiosk/KioskEventRsvp';
 import { KioskCardLink } from '@/components/kiosk/KioskCardLink';
-import { KioskSignUpModal } from '@/components/kiosk/KioskSignUpModal';
+import { KioskSignUpQrModal } from '@/components/kiosk/KioskSignUpQrModal';
 
 type KioskStage = 'search' | 'results' | 'session';
 
@@ -241,8 +241,8 @@ export default function KioskPage() {
         {config.orgName} Interactive Check-In Platform • Tap Card to Begin
       </footer>
 
-      {/* First-Time Student Sign-Up Modal */}
-      <KioskSignUpModal
+      {/* First-Time Student Mobile QR Sign-Up Modal */}
+      <KioskSignUpQrModal
         isOpen={isSignUpOpen}
         onClose={() => setIsSignUpOpen(false)}
         onSuccess={handleSignUpSuccess}
