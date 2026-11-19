@@ -199,21 +199,21 @@ body {
   }
 
   #nametag-to-print .nametag-name {
-    font-size: 22pt !important;
+    font-size: 20pt !important;
     line-height: 1.05 !important;
     color: #000000 !important;
   }
 
   #nametag-to-print .nametag-name.long-name {
-    font-size: 16pt !important;
+    font-size: 15pt !important;
   }
 
   #nametag-to-print .nametag-name.very-long-name {
-    font-size: 13pt !important;
+    font-size: 12pt !important;
   }
 
   #nametag-to-print .nametag-pronouns {
-    font-size: 9.5pt !important;
+    font-size: 9pt !important;
     color: #000000 !important;
   }
 

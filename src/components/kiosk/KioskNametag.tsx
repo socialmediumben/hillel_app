@@ -34,8 +34,8 @@ export function KioskNametag({ student, onPrint }: KioskNametagProps) {
 
   return (
     <div className="w-full max-w-md mx-auto">
-      {/* On-Screen Preview */}
-      <div className="nametag-preview-wrap">
+      {/* Single unified Nametag element (used for both screen display and thermal printing) */}
+      <div id="nametag-to-print" className="nametag-preview-wrap">
         <div className="nametag-card shadow-xl">
           <div className="nametag-header">
             <div>
@@ -77,42 +77,6 @@ export function KioskNametag({ student, onPrint }: KioskNametagProps) {
           <Printer className="w-6 h-6" />
           <span>Print Nametag</span>
         </button>
-      </div>
-
-      {/* Hidden print payload that activates exclusively under @media print */}
-      <div id="nametag-to-print">
-        <div className="nametag-preview-wrap">
-          <div className="nametag-card">
-            <div className="nametag-header">
-              <div>
-                <div className={`nametag-name ${nameClass}`}>{displayName}</div>
-                {student.pronouns && (
-                  <div className="nametag-pronouns">({student.pronouns})</div>
-                )}
-              </div>
-              <div className="text-right">
-                <span className="nametag-org">{config.orgName}</span>
-                {student.classYear && (
-                  <div className="text-xs font-bold text-slate-500">'{student.classYear.slice(-2)}</div>
-                )}
-              </div>
-            </div>
-
-            <div className="nametag-body">
-              {interestsList && (
-                <>
-                  <div className="nametag-nerdy-label">Interests & Passions</div>
-                  <div className="nametag-interests">{interestsList}</div>
-                </>
-              )}
-            </div>
-
-            <div className="nametag-footer">
-              <span>{config.campusName}</span>
-              <span>Welcome!</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

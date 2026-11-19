@@ -11,10 +11,10 @@ import { getStudentDisplayName } from '@/lib/types';
 export function Navigation() {
   const pathname = usePathname();
   const { student, logout } = useAuth();
-  const { config, isSandbox } = useConfig();
+  const { config } = useConfig();
 
   // If in dedicated fullscreen kiosk mode, hide standard app navigation
-  if (pathname === '/kiosk') {
+  if (pathname === '/kiosk' || pathname === '/kiosk/') {
     return null;
   }
 
@@ -28,13 +28,6 @@ export function Navigation() {
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      {/* Top Banner for Sandbox Mode */}
-      {isSandbox && (
-        <div className="bg-amber-500 text-white text-xs font-bold py-1 px-4 text-center tracking-wide">
-          SANDBOX DEMO MODE (Local Offline Storage Active) • <Link href="/developer" className="underline hover:text-amber-100">Configure Google Sheet</Link>
-        </div>
-      )}
-
       <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo & Org Name */}
         <Link href="/" className="flex items-center space-x-2.5">
@@ -55,7 +48,7 @@ export function Navigation() {
         <nav className="hidden md:flex items-center space-x-1">
           {navLinks.map((link) => {
             const Icon = link.icon;
-            const isActive = pathname === link.href;
+            const isActive = pathname === link.href || pathname === `${link.href}/`;
             return (
               <Link
                 key={link.href}
@@ -111,7 +104,7 @@ export function Navigation() {
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 px-2 py-1.5 flex justify-around items-center shadow-lg">
         {navLinks.map((link) => {
           const Icon = link.icon;
-          const isActive = pathname === link.href;
+          const isActive = pathname === link.href || pathname === `${link.href}/`;
           return (
             <Link
               key={link.href}

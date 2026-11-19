@@ -42,10 +42,10 @@ export async function testSheetConnection(appsScriptUrl: string): Promise<{ ok: 
 }
 
 /**
- * Fetch events from Google Sheet or Sandbox
+ * Fetch events directly from Google Sheet 'App Events' tab
  */
 export async function fetchEvents(config: AppConfig): Promise<AppEvent[]> {
-  if (config.isSandbox || !config.appsScriptUrl) {
+  if (!config.appsScriptUrl) {
     return getSandboxEvents();
   }
 
@@ -57,20 +57,20 @@ export async function fetchEvents(config: AppConfig): Promise<AppEvent[]> {
     if (data.status === 'success' && Array.isArray(data.events)) {
       return data.events;
     }
-    return getSandboxEvents();
+    return [];
   } catch (err) {
-    console.warn('Failed to fetch events from Google Apps Script, falling back to cached/sandbox events:', err);
-    return getSandboxEvents();
+    console.warn('Error fetching events from Google Apps Script:', err);
+    return [];
   }
 }
 
 /**
- * Search students from Google Sheet or Sandbox
+ * Search students directly from Google Sheet 'Students_Directory' tab
  */
 export async function searchStudents(query: string, config: AppConfig): Promise<StudentProfile[]> {
   const cleanQ = query.trim().toLowerCase();
 
-  if (config.isSandbox || !config.appsScriptUrl) {
+  if (!config.appsScriptUrl) {
     const all = getSandboxStudents();
     if (!cleanQ) return all;
     return all.filter((s) => {
@@ -93,8 +93,8 @@ export async function searchStudents(query: string, config: AppConfig): Promise<
     }
     return [];
   } catch (err) {
-    console.warn('Failed to search students from Google Apps Script, falling back to sandbox:', err);
-    return searchStudents(cleanQ, { ...config, isSandbox: true });
+    console.warn('Error searching students from Google Apps Script:', err);
+    return [];
   }
 }
 
@@ -129,7 +129,7 @@ export async function recordCheckIn(
     stationId,
   };
 
-  if (config.isSandbox || !config.appsScriptUrl) {
+  if (!config.appsScriptUrl) {
     saveSandboxCheckIn(checkInRecord);
     return { success: true, checkInId: checkInRecord.id };
   }
@@ -150,12 +150,12 @@ export async function recordCheckIn(
     });
     const data = await res.json();
     if (data.status === 'success') {
-      saveSandboxCheckIn(checkInRecord); // local mirror
+      saveSandboxCheckIn(checkInRecord);
       return { success: true, checkInId: data.checkInId || checkInRecord.id };
     }
     return { success: false, error: data.message || 'Check-in failed' };
   } catch (err: any) {
-    console.warn('Network error recording check-in, saving locally to sandbox cache:', err);
+    console.warn('Network error recording check-in, saving locally to cache:', err);
     saveSandboxCheckIn(checkInRecord);
     return { success: true, checkInId: checkInRecord.id };
   }
@@ -180,7 +180,7 @@ export async function recordEventRsvp(
     status: 'Confirmed',
   };
 
-  if (config.isSandbox || !config.appsScriptUrl) {
+  if (!config.appsScriptUrl) {
     saveSandboxRsvp(rsvpRecord);
     return { success: true, rsvpId: rsvpRecord.id };
   }
@@ -206,7 +206,7 @@ export async function recordEventRsvp(
     }
     return { success: false, error: data.message || 'RSVP failed' };
   } catch (err: any) {
-    console.warn('Network error registering RSVP, saving locally to sandbox cache:', err);
+    console.warn('Network error registering RSVP, saving locally to cache:', err);
     saveSandboxRsvp(rsvpRecord);
     return { success: true, rsvpId: rsvpRecord.id };
   }
@@ -226,7 +226,7 @@ export async function createStudent(
     createdAt: new Date().toISOString(),
   };
 
-  if (config.isSandbox || !config.appsScriptUrl) {
+  if (!config.appsScriptUrl) {
     const current = getSandboxStudents();
     current.push(fullStudent);
     saveSandboxStudents(current);
@@ -251,7 +251,7 @@ export async function createStudent(
     }
     return { success: false, error: data.message || 'Failed to create student' };
   } catch (err: any) {
-    console.warn('Network error creating student, saving locally to sandbox:', err);
+    console.warn('Network error creating student, saving locally:', err);
     const current = getSandboxStudents();
     current.push(fullStudent);
     saveSandboxStudents(current);
@@ -266,7 +266,7 @@ export async function updateStudentProfile(
   student: StudentProfile,
   config: AppConfig
 ): Promise<{ success: boolean; error?: string }> {
-  if (config.isSandbox || !config.appsScriptUrl) {
+  if (!config.appsScriptUrl) {
     const current = getSandboxStudents();
     const idx = current.findIndex((s) => s.id === student.id);
     if (idx >= 0) {
@@ -297,7 +297,7 @@ export async function updateStudentProfile(
     }
     return { success: false, error: data.message || 'Failed to update student profile' };
   } catch (err: any) {
-    console.warn('Network error updating student profile, saving locally to sandbox:', err);
+    console.warn('Network error updating student profile, saving locally:', err);
     const current = getSandboxStudents();
     const idx = current.findIndex((s) => s.id === student.id);
     if (idx >= 0) {
@@ -318,7 +318,7 @@ export async function linkCardToStudent(
 ): Promise<{ success: boolean; error?: string }> {
   const norm = normalizeNfcTapCard(tapCard);
 
-  if (config.isSandbox || !config.appsScriptUrl) {
+  if (!config.appsScriptUrl) {
     const current = getSandboxStudents();
     const student = current.find((s) => s.id === studentId);
     if (student) {
@@ -326,7 +326,7 @@ export async function linkCardToStudent(
       saveSandboxStudents(current);
       return { success: true };
     }
-    return { success: false, error: 'Student not found in sandbox.' };
+    return { success: false, error: 'Student not found.' };
   }
 
   try {
@@ -351,7 +351,7 @@ export async function linkCardToStudent(
     }
     return { success: false, error: data.message || 'Failed to link card' };
   } catch (err: any) {
-    console.warn('Network error linking card, saving locally to sandbox:', err);
+    console.warn('Network error linking card, saving locally:', err);
     const current = getSandboxStudents();
     const student = current.find((s) => s.id === studentId);
     if (student) {

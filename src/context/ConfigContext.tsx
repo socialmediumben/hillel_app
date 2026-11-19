@@ -10,7 +10,7 @@ const DEFAULT_CONFIG: AppConfig = {
   primaryColor: '#1d4ed8', // Hillel Blue
   sheetId: '1vRSAacNlDyCs7Fs0gEXiTtkO8vzcoXmZbWvHFqm1zm0',
   appsScriptUrl: '',
-  isSandbox: true, // Default to sandbox until user pastes Google Apps Script URL
+  isSandbox: false, // Default to live spreadsheet data
   stationId: 'front-desk-kiosk-01',
 };
 
@@ -35,7 +35,8 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
       const cached = localStorage.getItem(LS_CONFIG_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        setConfig((prev) => ({ ...prev, ...parsed }));
+        // Default isSandbox to false unless explicitly forced
+        setConfig((prev) => ({ ...prev, ...parsed, isSandbox: false }));
       }
     } catch (_) {}
     setIsLoaded(true);

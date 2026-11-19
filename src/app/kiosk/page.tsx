@@ -116,12 +116,6 @@ export default function KioskPage() {
         </div>
 
         <div className="flex items-center space-x-3">
-          {isSandbox && (
-            <span className="bg-amber-100 text-amber-800 text-xs font-extrabold px-3 py-1.5 rounded-full border border-amber-300">
-              Sandbox Mode
-            </span>
-          )}
-
           {stage !== 'search' && (
             <button
               onClick={handleReset}

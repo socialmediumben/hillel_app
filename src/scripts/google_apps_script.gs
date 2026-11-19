@@ -41,31 +41,6 @@ function initializeSheets() {
     eventsSheet = ss.insertSheet('App Events');
     eventsSheet.appendRow(['Event_ID', 'Title', 'Date', 'Start_Time', 'End_Time', 'Location', 'Description', 'Category', 'Active']);
     eventsSheet.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#1d4ed8').setFontColor('#ffffff');
-    
-    // Add sample Hillel event
-    var todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyy-MM-dd');
-    eventsSheet.appendRow([
-      'shabbat-welcome',
-      'Community Shabbat Dinner',
-      todayStr,
-      '6:30 PM',
-      '9:00 PM',
-      'Hillel Dining Hall',
-      'Join us for candle lighting, songs, warm challah, and a 4-course Shabbat dinner! Everyone is welcome.',
-      'Shabbat',
-      true
-    ]);
-    eventsSheet.appendRow([
-      'bagel-brunch',
-      'Sunday Bagel & Schmear Brunch',
-      todayStr,
-      '11:00 AM',
-      '1:00 PM',
-      'Hillel Lounge',
-      'Fresh hot bagels, lox, cream cheese, coffee, and chill vibes before finals.',
-      'Social',
-      true
-    ]);
   }
 
   // 2. Students Directory Tab
@@ -78,23 +53,6 @@ function initializeSheets() {
       'Dietary_Restrictions', 'Interests', 'Created_At'
     ]);
     studentsSheet.getRange(1, 1, 1, 13).setFontWeight('bold').setBackground('#1d4ed8').setFontColor('#ffffff');
-    
-    // Add sample student
-    studentsSheet.appendRow([
-      'HIL-1001',
-      '1414309466',
-      'Jordan',
-      'Taylor',
-      'Jordan',
-      'they/them',
-      'jordan.taylor@campus.edu',
-      '(555) 234-5678',
-      '2026',
-      'Computer Science',
-      'Vegetarian, Kosher-style',
-      'Shabbat, Social Action, Bagel Brunches',
-      new Date().toISOString()
-    ]);
   }
 
   // 3. Attendance CheckIns Tab

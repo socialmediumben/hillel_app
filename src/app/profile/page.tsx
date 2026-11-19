@@ -8,7 +8,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useConfig } from '@/context/ConfigContext';
 import { StudentProfile, getStudentDisplayName } from '@/lib/types';
 import { searchStudents, createStudent } from '@/lib/sheets';
-import { INITIAL_SANDBOX_STUDENTS } from '@/lib/sandbox';
 
 const COMMON_DIETARY = [
   'Strictly Kosher',
@@ -84,7 +83,7 @@ export default function ProfilePage() {
     try {
       const results = await searchStudents(searchQuery.trim(), config);
       if (results.length === 0) {
-        setSearchError('No matching student found. Try your last name or email.');
+        setSearchError('No matching student found. Try your last name, email, or card ID.');
       } else if (results.length === 1) {
         login(results[0]);
       } else {
@@ -208,20 +207,8 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Quick Demo Logins */}
-            <div className="pt-6 border-t border-slate-100">
-              <span className="text-xs font-black uppercase text-slate-400 block mb-3">Quick Sandbox Sign-In:</span>
-              <div className="flex flex-wrap justify-center gap-2">
-                {INITIAL_SANDBOX_STUDENTS.map((demo) => (
-                  <button
-                    key={demo.id}
-                    onClick={() => login(demo)}
-                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold rounded-xl transition-colors cursor-pointer"
-                  >
-                    {getStudentDisplayName(demo)}
-                  </button>
-                ))}
-              </div>
+            <div className="pt-4 border-t border-slate-100 text-xs text-slate-400">
+              New to Hillel? You can register on the <Link href="/kiosk" className="text-blue-700 font-bold hover:underline">Kiosk Sign-Up</Link> screen.
             </div>
           </div>
         ) : (
