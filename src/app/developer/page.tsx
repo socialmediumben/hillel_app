@@ -21,7 +21,18 @@ import {
   Save,
   Table,
   FileText,
-  RotateCcw
+  RotateCcw,
+  BookOpen,
+  History,
+  Tag,
+  HelpCircle,
+  QrCode,
+  CreditCard,
+  Sparkles,
+  Terminal,
+  Copy,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
 import { useConfig } from '@/context/ConfigContext';
@@ -31,6 +42,8 @@ import {
   CheckInFieldConfig,
   DEFAULT_REGISTRATION_FIELDS,
   DEFAULT_CHECKIN_FIELDS,
+  APP_VERSION,
+  APP_BUILD_DATE
 } from '@/lib/types';
 
 export default function DeveloperPage() {
@@ -48,8 +61,8 @@ export default function DeveloperPage() {
     isSavingCloud
   } = useConfig();
 
-  // Active sub-tab: 'general' | 'signup_fields' | 'checkin_fields'
-  const [activeDevTab, setActiveDevTab] = useState<'general' | 'signup_fields' | 'checkin_fields'>('general');
+  // Active sub-tab: 'general' | 'signup_fields' | 'checkin_fields' | 'guide' | 'changelog'
+  const [activeDevTab, setActiveDevTab] = useState<'general' | 'signup_fields' | 'checkin_fields' | 'guide' | 'changelog'>('general');
 
   // Password gate state
   const [passwordInput, setPasswordInput] = useState('');
@@ -86,6 +99,10 @@ export default function DeveloperPage() {
   // Configurable Check-In Fields State
   const [checkInList, setCheckInList] = useState<CheckInFieldConfig[]>(config.checkInFields || DEFAULT_CHECKIN_FIELDS);
   const [checkInSavedSuccess, setCheckInSavedSuccess] = useState(false);
+
+  // User Guide open sections state
+  const [openGuideSection, setOpenGuideSection] = useState<string | null>('sheets_setup');
+  const [copiedCode, setCopiedCode] = useState(false);
 
   // Sync state with config
   useEffect(() => {
@@ -150,7 +167,6 @@ export default function DeveloperPage() {
     setFieldsList((prev) =>
       prev.map((f) => {
         if (f.id === fieldId) {
-          // First Name and Last Name must always be enabled
           if (f.id === 'firstName' || f.id === 'lastName') return f;
           return { ...f, enabled: !f.enabled };
         }
@@ -163,7 +179,6 @@ export default function DeveloperPage() {
     setFieldsList((prev) =>
       prev.map((f) => {
         if (f.id === fieldId) {
-          // First Name, Last Name, and Email must stay required for basic identity
           if (f.id === 'firstName' || f.id === 'lastName') return f;
           return { ...f, required: !f.required };
         }
@@ -250,7 +265,6 @@ export default function DeveloperPage() {
 
   // Check-In Columns Handlers
   const handleToggleCheckInCol = (key: string) => {
-    // Locked core identifier columns cannot be disabled
     if (key === 'checkInId' || key === 'timestamp' || key === 'date') return;
     setCheckInList((prev) =>
       prev.map((c) => (c.key === key ? { ...c, enabled: !c.enabled } : c))
@@ -271,6 +285,16 @@ export default function DeveloperPage() {
     }
   };
 
+  const toggleGuideSection = (id: string) => {
+    setOpenGuideSection(openGuideSection === id ? null : id);
+  };
+
+  const copyAppsScriptLocation = () => {
+    navigator.clipboard.writeText('src/scripts/google_apps_script.gs');
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
   // If developer mode is locked, display password prompt
   if (!isDevUnlocked) {
     return (
@@ -282,7 +306,12 @@ export default function DeveloperPage() {
               <Lock className="w-8 h-8" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-900">Developer & Admin Access</h1>
+              <div className="flex items-center justify-center space-x-2">
+                <h1 className="text-2xl font-black text-slate-900">Developer & Admin Access</h1>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-[10px] font-black uppercase">
+                  v{APP_VERSION}
+                </span>
+              </div>
               <p className="text-xs text-slate-500 font-semibold mt-1">
                 Enter your administrative password to access developer settings and configuration.
               </p>
@@ -307,7 +336,7 @@ export default function DeveloperPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -350,7 +379,17 @@ export default function DeveloperPage() {
               <Wrench className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900">Developer & Admin Center</h1>
+              <div className="flex items-center space-x-2.5">
+                <h1 className="text-2xl sm:text-3xl font-black text-slate-900">Developer & Admin Center</h1>
+                <button
+                  type="button"
+                  onClick={() => setActiveDevTab('changelog')}
+                  className="px-2.5 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-full text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+                  title="View Changelog"
+                >
+                  v{APP_VERSION}
+                </button>
+              </div>
               <p className="text-xs sm:text-sm font-semibold text-slate-500">
                 Configure sign-up questions, spreadsheet check-in columns, and cloud database settings.
               </p>
@@ -391,12 +430,12 @@ export default function DeveloperPage() {
           </div>
         </div>
 
-        {/* Tab Selector: General, Sign-Up Fields, Check-In Columns */}
+        {/* Tab Selector: General, Sign-Up Fields, Check-In Columns, User Guide, Changelog */}
         <div className="flex items-center space-x-2 bg-slate-200/80 p-1.5 rounded-2xl overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveDevTab('general')}
-            className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap ${
+            className={`flex-1 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer whitespace-nowrap ${
               activeDevTab === 'general' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -406,22 +445,42 @@ export default function DeveloperPage() {
           <button
             type="button"
             onClick={() => setActiveDevTab('signup_fields')}
-            className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap ${
+            className={`flex-1 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer whitespace-nowrap ${
               activeDevTab === 'signup_fields' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <UserCheck className="w-4 h-4" />
-            <span>Sign-Up Form Fields ({fieldsList.filter((f) => f.enabled).length} Active)</span>
+            <span>Sign-Up Fields ({fieldsList.filter((f) => f.enabled).length})</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveDevTab('checkin_fields')}
-            className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-2 cursor-pointer whitespace-nowrap ${
+            className={`flex-1 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer whitespace-nowrap ${
               activeDevTab === 'checkin_fields' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Table className="w-4 h-4" />
-            <span>Check-In Columns ({checkInList.filter((c) => c.enabled).length} Columns)</span>
+            <span>Check-In Columns ({checkInList.filter((c) => c.enabled).length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveDevTab('guide')}
+            className={`flex-1 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer whitespace-nowrap ${
+              activeDevTab === 'guide' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>User Guide</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveDevTab('changelog')}
+            className={`flex-1 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center space-x-1.5 cursor-pointer whitespace-nowrap ${
+              activeDevTab === 'changelog' ? 'bg-blue-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Changelog</span>
           </button>
         </div>
 
@@ -728,7 +787,7 @@ export default function DeveloperPage() {
                           <button
                             type="button"
                             onClick={() => handleDeleteCustomQuestion(f.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                             title="Delete custom question"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1001,6 +1060,387 @@ export default function DeveloperPage() {
                   {isSavingCloud ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                   <span>Save & Sync Check-In Columns</span>
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 4: USER GUIDE
+            ========================================================================= */}
+        {activeDevTab === 'guide' && (
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 animate-fade-in text-left">
+            <div className="flex items-center space-x-3 border-b border-slate-100 pb-4">
+              <div className="p-2.5 bg-blue-100 text-blue-700 rounded-2xl">
+                <BookOpen className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Administrator & Developer User Guide</h2>
+                <p className="text-xs text-slate-500 font-semibold">
+                  Complete operational manual for managing sheets, onboarding forms, NFC tap cards, and kiosk terminals.
+                </p>
+              </div>
+            </div>
+
+            {/* Guide Sections Accordion */}
+            <div className="space-y-4 text-xs sm:text-sm">
+              {/* Section 1: Google Sheets Architecture */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGuideSection('sheets_setup')}
+                  className="w-full p-4 bg-slate-50 hover:bg-blue-50/50 flex items-center justify-between text-left font-black text-slate-800 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Database className="w-4 h-4 text-emerald-600" />
+                    <span>1. Google Sheets Database & Architecture</span>
+                  </div>
+                  {openGuideSection === 'sheets_setup' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {openGuideSection === 'sheets_setup' && (
+                  <div className="p-5 space-y-3 bg-white text-slate-600 border-t border-slate-100 leading-relaxed">
+                    <p>
+                      Your Google Sheet (<code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[11px] text-slate-800">{config.sheetId}</code>) acts as your core CRM database. The application operates across 5 dedicated sheet tabs:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1.5 text-xs">
+                      <li>
+                        <strong><code>App Events</code></strong>: Lists all campus programs. Columns: <code className="text-slate-800">Event_ID, Title, Date, Start_Time, End_Time, Location, Description, Category, Active</code>. You can add or edit events directly in the sheet!
+                      </li>
+                      <li>
+                        <strong><code>Students_Directory</code></strong>: Student contact profiles. Columns: <code className="text-slate-800">Contact_ID, Tap_Card_ID, First_Name, Last_Name, Preferred_Name, Pronouns, Email, Phone, Class_Year, Major, Dietary_Restrictions, Interests, Created_At</code>.
+                      </li>
+                      <li>
+                        <strong><code>Attendance_CheckIns</code></strong>: Event and kiosk attendance records. Logs: <code className="text-slate-800">CheckIn_ID, Timestamp, Date, Contact_ID, Student_Name, Tap_Card_ID, Event_ID, Event_Name, Station_ID</code>, plus any additional columns you enable in the Check-In Columns customizer!
+                      </li>
+                      <li>
+                        <strong><code>Event_RSVPs</code></strong>: Stores 1-click student RSVPs from the mobile events calendar.
+                      </li>
+                      <li>
+                        <strong><code>App_Config</code></strong>: Key/Value store that saves your custom form questions and check-in columns directly in the sheet.
+                      </li>
+                    </ul>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs">
+                      <strong>How to Deploy or Update the Script:</strong> Open your Google Sheet &gt; Extensions &gt; Apps Script. Paste the code from <code className="font-mono bg-blue-100 px-1 py-0.5 rounded">src/scripts/google_apps_script.gs</code>. Run <code className="font-mono font-bold">initializeSheets</code>, then Deploy &gt; New deployment &gt; Web app (Execute as: <strong>Me</strong>, Access: <strong>Anyone</strong>).
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Form Fields Customizer */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGuideSection('form_customizer')}
+                  className="w-full p-4 bg-slate-50 hover:bg-blue-50/50 flex items-center justify-between text-left font-black text-slate-800 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2">
+                    <UserCheck className="w-4 h-4 text-blue-600" />
+                    <span>2. Customizing Student Sign-Up Questions</span>
+                  </div>
+                  {openGuideSection === 'form_customizer' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {openGuideSection === 'form_customizer' && (
+                  <div className="p-5 space-y-3 bg-white text-slate-600 border-t border-slate-100 leading-relaxed">
+                    <p>
+                      You have full no-code control over what new students see when registering at <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[11px] text-slate-800">/register</code> or on the kiosk:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1.5 text-xs">
+                      <li>
+                        <strong>Toggle Visibility</strong>: Use the switch on any field to turn it on or off. Disabled fields are immediately hidden from both the mobile QR sign-up and kiosk modals.
+                      </li>
+                      <li>
+                        <strong>Required vs Optional</strong>: Toggle whether students must fill out a question to complete registration. Required fields show a red asterisk <span className="text-rose-600 font-bold">*</span> and block submission if left blank.
+                      </li>
+                      <li>
+                        <strong>Customizing Tags (Dietary & Interests)</strong>: For multi-select fields, click <span className="text-rose-500 font-bold">✕</span> on any tag to remove it, or type a new tag name into the input and click <strong>+ Add</strong>.
+                      </li>
+                      <li>
+                        <strong>Adding Custom Questions</strong>: Use the "Add a Custom Sign-Up Question" box to ask campus-specific questions (e.g. <em>Instagram Handle</em>, <em>Campus Dorm</em>, <em>Graduation Semester</em>).
+                      </li>
+                      <li>
+                        <strong>Cloud Sync</strong>: Clicking <strong>Save & Sync Sign-Up Fields</strong> automatically updates the Google Sheet so all devices load the new questions instantly.
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 3: Check-In Columns Customizer */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGuideSection('checkin_columns')}
+                  className="w-full p-4 bg-slate-50 hover:bg-blue-50/50 flex items-center justify-between text-left font-black text-slate-800 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Table className="w-4 h-4 text-indigo-600" />
+                    <span>3. Customizing Attendance Check-In Columns</span>
+                  </div>
+                  {openGuideSection === 'checkin_columns' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {openGuideSection === 'checkin_columns' && (
+                  <div className="p-5 space-y-3 bg-white text-slate-600 border-t border-slate-100 leading-relaxed">
+                    <p>
+                      When a student checks in at the front desk kiosk or on a mobile check-in link, you can choose exactly what data is recorded:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1.5 text-xs">
+                      <li>
+                        <strong>Core Columns</strong>: <code className="text-slate-800">CheckIn_ID, Timestamp, Date</code> are always recorded to maintain chronological audit trails.
+                      </li>
+                      <li>
+                        <strong>Optional Metadata</strong>: Check or uncheck <code className="text-slate-800">Email, Phone, Class_Year, Major, Dietary_Restrictions, Interests, Station_ID</code> to log these directly alongside attendance.
+                      </li>
+                      <li>
+                        <strong>Automatic Sheet Header Creation</strong>: If you enable a column that does not yet exist in your <code className="text-slate-800">Attendance_CheckIns</code> sheet, the Apps Script backend will automatically add the new column header with a blue bold format upon the next check-in!
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 4: NFC Tap Cards & Badges */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGuideSection('nfc_cards')}
+                  className="w-full p-4 bg-slate-50 hover:bg-blue-50/50 flex items-center justify-between text-left font-black text-slate-800 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2">
+                    <CreditCard className="w-4 h-4 text-purple-600" />
+                    <span>4. NFC Tap Cards & Hardware Integration</span>
+                  </div>
+                  {openGuideSection === 'nfc_cards' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {openGuideSection === 'nfc_cards' && (
+                  <div className="p-5 space-y-3 bg-white text-slate-600 border-t border-slate-100 leading-relaxed">
+                    <p>
+                      The platform supports physical RFID/NFC cards, silicone wristbands, keyfobs, and stickers (Mifare Classic, Mifare Ultralight, NTAG213/215/216, 13.56MHz):
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1.5 text-xs">
+                      <li>
+                        <strong>Phone NFC (Android Chrome)</strong>: Tapping <em>"Tap Card to Back of Phone"</em> activates Chromium Web NFC (<code className="text-slate-800">NDEFReader</code>) directly in the browser with haptic vibration and chime.
+                      </li>
+                      <li>
+                        <strong>Front Desk Kiosk Readers</strong>: USB or Bluetooth desktop RFID readers (such as ACR122U or keyboard-emulating card wedges) type the card ID into the search bar automatically.
+                      </li>
+                      <li>
+                        <strong>Self-Service Card Linking</strong>: Authenticated students can navigate to their digital pass at <code className="text-slate-800">app.hillel818.org</code>, click <strong>Link / Update Tap Card</strong>, and bind their card to their account anytime.
+                      </li>
+                      <li>
+                        <strong>Unlinking Lost Cards</strong>: If a card is lost, clicking <strong>Unlink Current Card</strong> clears it safely from their account.
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 5: Front Desk Kiosk Operations */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGuideSection('kiosk_ops')}
+                  className="w-full p-4 bg-slate-50 hover:bg-blue-50/50 flex items-center justify-between text-left font-black text-slate-800 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2">
+                    <QrCode className="w-4 h-4 text-amber-600" />
+                    <span>5. Front Desk Kiosk Operations & Thermal Printing</span>
+                  </div>
+                  {openGuideSection === 'kiosk_ops' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {openGuideSection === 'kiosk_ops' && (
+                  <div className="p-5 space-y-3 bg-white text-slate-600 border-t border-slate-100 leading-relaxed">
+                    <p>
+                      The Kiosk (<code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[11px] text-slate-800">kiosk.hillel818.org</code>) is optimized for touchscreens, iPads, Android tablets, or front desk laptops:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1.5 text-xs">
+                      <li>
+                        <strong>90-Second Auto-Reset</strong>: If an authenticated student walks away without signing out, the kiosk automatically clears the session after 90 seconds to preserve privacy.
+                      </li>
+                      <li>
+                        <strong>Check-In Options</strong>: Tapping a card opens today's event check-in options (e.g. <em>Community Shabbat Dinner</em>, <em>Bagels &amp; Schmear</em>, or <em>General Visit &amp; Study Lounge</em>).
+                      </li>
+                      <li>
+                        <strong>2" x 3" Thermal Nametag Printing</strong>: Formatted for standard desktop label printers (Zebra, Rollo, Brother, MUNBYN). Prints auto-scaling Preferred Name, Pronouns, and Interests.
+                      </li>
+                      <li>
+                        <strong>Contactless QR Sign-Up</strong>: When a first-time student taps <em>First Time? Sign Up Here</em>, the kiosk generates a QR code linking to <code className="text-slate-800">/register?card=&lt;CARD_ID&gt;</code> so they can complete sign-up on their own phone while keeping the kiosk line moving!
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 6: Domains & Security */}
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGuideSection('domains_security')}
+                  className="w-full p-4 bg-slate-50 hover:bg-blue-50/50 flex items-center justify-between text-left font-black text-slate-800 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Lock className="w-4 h-4 text-rose-600" />
+                    <span>6. Domain Routing & Security</span>
+                  </div>
+                  {openGuideSection === 'domains_security' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {openGuideSection === 'domains_security' && (
+                  <div className="p-5 space-y-3 bg-white text-slate-600 border-t border-slate-100 leading-relaxed">
+                    <ul className="list-disc pl-5 space-y-1.5 text-xs">
+                      <li>
+                        <strong>Student App</strong>: <a href="https://app.hillel818.org" target="_blank" rel="noreferrer" className="text-blue-600 underline font-bold">https://app.hillel818.org/</a> (CNAME pointing to <code className="text-slate-800">socialmediumben.github.io</code>).
+                      </li>
+                      <li>
+                        <strong>Kiosk Station</strong>: <a href="https://kiosk.hillel818.org" target="_blank" rel="noreferrer" className="text-blue-600 underline font-bold">https://kiosk.hillel818.org/</a> (Configured on Squarespace DNS with a 301 forwarding rule to <code className="text-slate-800">https://app.hillel818.org/kiosk/</code>).
+                      </li>
+                      <li>
+                        <strong>Developer Password</strong>: Access to this developer panel is secured by password <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono font-bold text-slate-900">Plummer17729!</code>. Click <strong>Lock Mode</strong> in the top right to end your session.
+                      </li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 5: CHANGELOG & VERSION HISTORY
+            ========================================================================= */}
+        {activeDevTab === 'changelog' && (
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 animate-fade-in text-left">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-blue-100 text-blue-700 rounded-2xl">
+                  <History className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">Platform Changelog & Release Notes</h2>
+                  <p className="text-xs text-slate-500 font-semibold">
+                    Current Version: <span className="font-bold text-slate-800">v{APP_VERSION}</span> • Build Date: <span className="font-bold text-slate-800">{APP_BUILD_DATE}</span>
+                  </p>
+                </div>
+              </div>
+
+              <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-black rounded-full text-xs uppercase tracking-wider self-start sm:self-auto">
+                Stable Release
+              </span>
+            </div>
+
+            {/* Releases Timeline */}
+            <div className="space-y-6">
+              {/* Release v2.4.0 */}
+              <div className="p-5 rounded-2xl border border-blue-200 bg-blue-50/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 bg-blue-700 text-white rounded-xl text-xs font-black">
+                      v2.4.0
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">November 19, 2026</span>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-black uppercase">
+                      Current
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-blue-700">Dynamic Field Customizer &amp; Cloud Config</span>
+                </div>
+                <ul className="list-disc pl-5 text-xs text-slate-600 space-y-1">
+                  <li><strong>Sign-Up Fields Customizer</strong>: Admin control in Developer Mode to toggle fields on/off, set required/optional, edit labels, and customize Dietary &amp; Interests tag options.</li>
+                  <li><strong>Custom Sign-Up Questions</strong>: Added ability to add custom questions (text inputs or tag chips) to the registration form.</li>
+                  <li><strong>Check-In Columns Customizer</strong>: Select which student metadata (Email, Phone, Major, Class Year, etc.) is posted to the spreadsheet, with live table preview.</li>
+                  <li><strong>No-Code Google Sheet Sync</strong>: Saves configuration to the <code className="text-slate-800">App_Config</code> tab and syncs across all devices automatically.</li>
+                  <li><strong>Intelligent Column Creation</strong>: Updated Apps Script backend to automatically create missing column headers in <code className="text-slate-800">Attendance_CheckIns</code>.</li>
+                  <li><strong>Interactive Developer User Guide</strong>: Built full user manual and changelog directly into Developer Mode.</li>
+                </ul>
+              </div>
+
+              {/* Release v2.3.0 */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 bg-slate-800 text-white rounded-xl text-xs font-black">
+                      v2.3.0
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">November 19, 2026</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">Permanent Cloud Connection &amp; Self-Healing</span>
+                </div>
+                <ul className="list-disc pl-5 text-xs text-slate-600 space-y-1">
+                  <li><strong>Permanent Web App Baking</strong>: Embedded canonical Apps Script Web App URL into <code className="text-slate-800">DEFAULT_CONFIG</code> and build environment.</li>
+                  <li><strong>Self-Healing Cache</strong>: Automatically migrates any device with a blank local URL to the canonical live sheet connector.</li>
+                  <li><strong>Column Order Resilience</strong>: Frontend date/title parser automatically handles varied column ordering from Google Sheets.</li>
+                </ul>
+              </div>
+
+              {/* Release v2.2.0 */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 bg-slate-800 text-white rounded-xl text-xs font-black">
+                      v2.2.0
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">November 19, 2026</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">Profile NFC Tap Card Management</span>
+                </div>
+                <ul className="list-disc pl-5 text-xs text-slate-600 space-y-1">
+                  <li><strong>Student Self-Service Card Linking</strong>: Added prominent "Link / Update Tap Card" module into the student digital pass.</li>
+                  <li><strong>Web NFC Phone Scanning</strong>: Students can tap physical cards against the back of their phone on Android Chrome with haptic buzz and chime.</li>
+                  <li><strong>Manual Entry &amp; Unlinking</strong>: Supported typing Card UID and unlinking lost cards.</li>
+                </ul>
+              </div>
+
+              {/* Release v2.1.0 */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 bg-slate-800 text-white rounded-xl text-xs font-black">
+                      v2.1.0
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">November 19, 2026</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">Streamlined Student Hub &amp; Gate</span>
+                </div>
+                <ul className="list-disc pl-5 text-xs text-slate-600 space-y-1">
+                  <li><strong>Sign-In Gate</strong>: Greets unauthenticated visitors with Card Tap, Tap ID, or Last Name search.</li>
+                  <li><strong>Tabbed Experience</strong>: Clean switch between "My Profile" and "Events Calendar" once logged in.</li>
+                  <li><strong>Clean Navigation</strong>: Removed redundant Profile and Kiosk tabs from the student navigation bar.</li>
+                </ul>
+              </div>
+
+              {/* Release v2.0.0 */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 bg-slate-800 text-white rounded-xl text-xs font-black">
+                      v2.0.0
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">November 19, 2026</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">Mobile QR Kiosk Onboarding &amp; Custom Domains</span>
+                </div>
+                <ul className="list-disc pl-5 text-xs text-slate-600 space-y-1">
+                  <li><strong>Custom Domains</strong>: Live at <code className="text-slate-800">app.hillel818.org</code> with 301 forwarding from <code className="text-slate-800">kiosk.hillel818.org</code>.</li>
+                  <li><strong>Kiosk QR Mobile Sign-Up</strong>: Kiosk shows an on-screen QR code linking to mobile registration with card binding.</li>
+                  <li><strong>Password Protection</strong>: Secured Developer Mode behind password <code className="text-slate-800">Plummer17729!</code>.</li>
+                  <li><strong>Mock Data Purge</strong>: Removed all sample data and test events.</li>
+                </ul>
+              </div>
+
+              {/* Release v1.0.0 */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 bg-slate-800 text-white rounded-xl text-xs font-black">
+                      v1.0.0
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">November 19, 2026</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">Initial Hillel Platform Launch</span>
+                </div>
+                <ul className="list-disc pl-5 text-xs text-slate-600 space-y-1">
+                  <li>Initial port from makerspace architecture to Hillel campus operations.</li>
+                  <li>Google Sheet backend with Google Apps Script Web App connector.</li>
+                  <li>Front desk check-in kiosk with 2" x 3" printable thermal label nametags.</li>
+                </ul>
               </div>
             </div>
           </div>

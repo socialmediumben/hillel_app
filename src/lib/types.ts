@@ -1,3 +1,6 @@
+export const APP_VERSION = '2.4.0';
+export const APP_BUILD_DATE = 'November 19, 2026';
+
 export interface StudentProfile {
   id: string; // Contact_ID
   tapCard?: string; // Tap_Card_ID
