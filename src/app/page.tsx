@@ -26,36 +26,16 @@ import {
 import { Navigation } from '@/components/Navigation';
 import { useConfig } from '@/context/ConfigContext';
 import { useAuth } from '@/context/AuthContext';
-import { AppEvent, StudentProfile, getStudentDisplayName, isEventToday, isEventUpcomingOrToday } from '@/lib/types';
+import { AppEvent, StudentProfile, getStudentDisplayName, isEventToday, isEventUpcomingOrToday, DEFAULT_DIETARY_OPTIONS, DEFAULT_INTEREST_OPTIONS } from '@/lib/types';
 import { fetchEvents, recordEventRsvp, searchStudents, getStudentByCard, updateStudentProfile, linkCardToStudent } from '@/lib/sheets';
 import { isWebNfcSupported, startNfcScanner, triggerHapticFeedback, playSuccessChime, normalizeNfcTapCard } from '@/lib/hardware';
-
-const COMMON_DIETARY = [
-  'Strictly Kosher',
-  'Kosher-style',
-  'Vegetarian',
-  'Vegan',
-  'Gluten-Free',
-  'Nut Allergy',
-  'Dairy-Free',
-  'No Restrictions',
-];
-
-const COMMON_INTERESTS = [
-  'Shabbat & Holidays',
-  'Bagel Brunches',
-  'Social Action / Tikkun Olam',
-  'Jewish Learning Fellowship (JLF)',
-  'Leadership & Committees',
-  'Challah Baking',
-  'Greek Life / Chavurot',
-  'Arts & Jewish Culture',
-  'Career & Networking',
-];
 
 export default function HomePage() {
   const { config } = useConfig();
   const { student, login, logout, updateStudent } = useAuth();
+
+  const dietaryOptions = config.registrationFields?.find((f) => f.id === 'dietary')?.options || DEFAULT_DIETARY_OPTIONS;
+  const interestOptions = config.registrationFields?.find((f) => f.id === 'interests')?.options || DEFAULT_INTEREST_OPTIONS;
 
   // App Tab State: 'profile' | 'events'
   const [activeTab, setActiveTab] = useState<'profile' | 'events'>('profile');
@@ -919,7 +899,7 @@ export default function HomePage() {
                         Dietary Restrictions & Kosher Preferences
                       </label>
                       <div className="flex flex-wrap gap-1.5">
-                        {COMMON_DIETARY.map((item) => (
+                        {dietaryOptions.map((item) => (
                           <button
                             type="button"
                             key={item}
@@ -942,7 +922,7 @@ export default function HomePage() {
                         Interests & Programs
                       </label>
                       <div className="flex flex-wrap gap-1.5">
-                        {COMMON_INTERESTS.map((item) => (
+                        {interestOptions.map((item) => (
                           <button
                             type="button"
                             key={item}

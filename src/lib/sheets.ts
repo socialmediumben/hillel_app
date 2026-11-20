@@ -210,6 +210,12 @@ export async function recordCheckIn(
     eventId: event.id,
     eventName: event.title,
     stationId,
+    email: student.email || '',
+    phone: student.phone || '',
+    classYear: student.classYear || '',
+    major: student.major || '',
+    dietaryRestrictions: Array.isArray(student.dietaryRestrictions) ? student.dietaryRestrictions.join(', ') : '',
+    interests: Array.isArray(student.interests) ? student.interests.join(', ') : '',
   };
 
   const effectiveUrl = getEffectiveAppsScriptUrl(config);
@@ -230,6 +236,13 @@ export async function recordCheckIn(
         eventId: event.id,
         eventName: event.title,
         stationId,
+        email: student.email || '',
+        phone: student.phone || '',
+        classYear: student.classYear || '',
+        major: student.major || '',
+        dietaryRestrictions: checkInRecord.dietaryRestrictions,
+        interests: checkInRecord.interests,
+        checkInFields: config.checkInFields,
       }),
     });
     const data = await res.json();
@@ -447,5 +460,53 @@ export async function linkCardToStudent(
       saveSandboxStudents(current);
     }
     return { success: true };
+  }
+}
+
+/**
+ * Fetches remote app configuration from Google Sheet 'App_Config' tab
+ */
+export async function fetchRemoteConfig(config: AppConfig): Promise<Record<string, any> | null> {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) return null;
+  try {
+    const url = `${effectiveUrl}${effectiveUrl.includes('?') ? '&' : '?'}action=get_config&t=${Date.now()}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.status === 'success' && data.config) {
+      return data.config;
+    }
+  } catch (err) {
+    console.warn('Could not fetch remote config:', err);
+  }
+  return null;
+}
+
+/**
+ * Saves configuration to Google Sheet 'App_Config' tab
+ */
+export async function saveRemoteConfig(
+  config: AppConfig,
+  remoteConfig: Record<string, any>
+): Promise<{ success: boolean; error?: string }> {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) return { success: false, error: 'No Apps Script URL configured.' };
+  try {
+    const res = await fetch(effectiveUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'save_config',
+        config: remoteConfig,
+      }),
+    });
+    const data = await res.json();
+    if (data.status === 'success') {
+      return { success: true };
+    }
+    return { success: false, error: data.message || 'Failed to save config.' };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error saving config.' };
   }
 }

@@ -414,18 +414,87 @@ function recordCheckIn(data) {
   var now = new Date();
   var dateStr = Utilities.formatDate(now, Session.getScriptTimeZone() || 'America/Los_Angeles', 'yyyy-MM-dd');
 
-  sheet.appendRow([
-    checkInId,
-    now.toISOString(),
-    dateStr,
-    data.studentId || data.contactId || '',
-    data.studentName || '',
-    data.tapCard || '',
-    data.eventId || 'general_visit',
-    data.eventName || 'Hillel Visit',
-    data.stationId || 'kiosk-01'
-  ]);
+  // Build field dictionary from payload
+  var valMap = {
+    'checkinid': checkInId,
+    'id': checkInId,
+    'timestamp': now.toISOString(),
+    'time': now.toISOString(),
+    'date': dateStr,
+    'contactid': data.studentId || data.contactId || '',
+    'studentid': data.studentId || data.contactId || '',
+    'studentname': data.studentName || '',
+    'name': data.studentName || '',
+    'tapcardid': data.tapCard || '',
+    'tapcard': data.tapCard || '',
+    'card': data.tapCard || '',
+    'eventid': data.eventId || 'general_visit',
+    'eventname': data.eventName || 'Hillel Visit',
+    'event': data.eventName || 'Hillel Visit',
+    'stationid': data.stationId || 'kiosk-01',
+    'station': data.stationId || 'kiosk-01',
+    'email': data.email || '',
+    'phone': data.phone || '',
+    'classyear': data.classYear || '',
+    'graduationyear': data.classYear || '',
+    'major': data.major || '',
+    'dietaryrestrictions': data.dietaryRestrictions || '',
+    'dietary': data.dietaryRestrictions || '',
+    'interests': data.interests || ''
+  };
 
+  // Inspect existing headers
+  var lastCol = sheet.getLastColumn();
+  var headers = [];
+  if (lastCol > 0) {
+    headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  }
+
+  // If no headers exist, initialize with default
+  if (!headers || headers.length === 0) {
+    headers = ['CheckIn_ID', 'Timestamp', 'Date', 'Contact_ID', 'Student_Name', 'Tap_Card_ID', 'Event_ID', 'Event_Name', 'Station_ID'];
+    sheet.appendRow(headers);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#1d4ed8').setFontColor('#ffffff');
+  }
+
+  // If data.checkInFields passed, check if any enabled field is missing from headers
+  if (Array.isArray(data.checkInFields)) {
+    var existingNorm = headers.map(function(h) {
+      return String(h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    });
+    for (var f = 0; f < data.checkInFields.length; f++) {
+      var item = data.checkInFields[f];
+      if (item && item.enabled) {
+        var colNorm = String(item.columnHeader || item.key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (existingNorm.indexOf(colNorm) === -1) {
+          // Append new header column
+          var newColIdx = headers.length + 1;
+          var headerLabel = item.columnHeader || item.key;
+          sheet.getRange(1, newColIdx).setValue(headerLabel).setFontWeight('bold').setBackground('#1d4ed8').setFontColor('#ffffff');
+          headers.push(headerLabel);
+          existingNorm.push(colNorm);
+        }
+      }
+    }
+  }
+
+  // Build the row according to actual column headers
+  var rowValues = [];
+  for (var c = 0; c < headers.length; c++) {
+    var hNorm = String(headers[c] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    var val = valMap[hNorm];
+    if (val === undefined) {
+      // Check if custom field matches
+      if (data.customFields && data.customFields[hNorm] !== undefined) {
+        val = data.customFields[hNorm];
+      } else {
+        val = '';
+      }
+    }
+    rowValues.push(val);
+  }
+
+  sheet.appendRow(rowValues);
   return { status: 'success', checkInId: checkInId };
 }
 

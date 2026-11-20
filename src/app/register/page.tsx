@@ -7,30 +7,7 @@ import { UserPlus, CheckCircle2, AlertCircle, RefreshCw, CreditCard, Sparkles, A
 import { useConfig } from '@/context/ConfigContext';
 import { useAuth } from '@/context/AuthContext';
 import { createStudent } from '@/lib/sheets';
-import { StudentProfile } from '@/lib/types';
-
-const COMMON_DIETARY = [
-  'Strictly Kosher',
-  'Kosher-style',
-  'Vegetarian',
-  'Vegan',
-  'Gluten-Free',
-  'Nut Allergy',
-  'Dairy-Free',
-  'No Restrictions',
-];
-
-const COMMON_INTERESTS = [
-  'Shabbat & Holidays',
-  'Bagel Brunches',
-  'Social Action / Tikkun Olam',
-  'Jewish Learning Fellowship (JLF)',
-  'Leadership & Committees',
-  'Challah Baking',
-  'Greek Life / Chavurot',
-  'Arts & Jewish Culture',
-  'Career & Networking',
-];
+import { StudentProfile, DEFAULT_REGISTRATION_FIELDS, RegistrationFieldConfig } from '@/lib/types';
 
 function RegisterContent() {
   const searchParams = useSearchParams();
@@ -39,17 +16,25 @@ function RegisterContent() {
 
   const cardParam = searchParams.get('card') || '';
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [preferredName, setPreferredName] = useState('');
-  const [pronouns, setPronouns] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [classYear, setClassYear] = useState('2027');
-  const [major, setMajor] = useState('');
-  const [dietary, setDietary] = useState<string[]>([]);
-  const [interests, setInterests] = useState<string[]>([]);
-  const [tapCard, setTapCard] = useState(cardParam);
+  const fields = config.registrationFields && config.registrationFields.length > 0
+    ? config.registrationFields
+    : DEFAULT_REGISTRATION_FIELDS;
+  const enabledFields = fields.filter((f) => f.enabled);
+
+  // Form values state
+  const [formData, setFormData] = useState<Record<string, any>>({
+    firstName: '',
+    lastName: '',
+    preferredName: '',
+    pronouns: '',
+    email: '',
+    phone: '',
+    classYear: '2027',
+    major: '',
+    dietary: [] as string[],
+    interests: [] as string[],
+    tapCard: cardParam || '',
+  });
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -58,46 +43,68 @@ function RegisterContent() {
 
   useEffect(() => {
     if (cardParam) {
-      setTapCard(cardParam);
+      setFormData((prev) => ({ ...prev, tapCard: cardParam }));
     }
   }, [cardParam]);
 
-  const toggleDietary = (item: string) => {
-    setDietary((prev) =>
-      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
-    );
+  const updateField = (id: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
-  const toggleInterest = (item: string) => {
-    setInterests((prev) =>
-      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
-    );
+  const toggleMultiselect = (fieldId: string, item: string) => {
+    setFormData((prev) => {
+      const currentList: string[] = Array.isArray(prev[fieldId]) ? prev[fieldId] : [];
+      const nextList = currentList.includes(item)
+        ? currentList.filter((x) => x !== item)
+        : [...currentList, item];
+      return { ...prev, [fieldId]: nextList };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      setErrorMsg('First Name, Last Name, and Email are required.');
-      return;
+
+    // Validate required fields
+    for (const f of enabledFields) {
+      if (f.required) {
+        const val = formData[f.id];
+        const isEmpty =
+          val === undefined ||
+          val === null ||
+          (typeof val === 'string' && !val.trim()) ||
+          (Array.isArray(val) && val.length === 0);
+        if (isEmpty) {
+          setErrorMsg(`${f.label} is required.`);
+          return;
+        }
+      }
     }
 
     setIsLoading(true);
     setErrorMsg(null);
 
     try {
+      const customFields: Record<string, any> = {};
+      for (const f of enabledFields) {
+        if (f.isCustom) {
+          customFields[f.id] = formData[f.id];
+        }
+      }
+
       const res = await createStudent(
         {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          preferredName: preferredName.trim() || firstName.trim(),
-          pronouns: pronouns.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          classYear: classYear.trim(),
-          major: major.trim(),
-          dietaryRestrictions: dietary,
-          interests,
-          tapCard: tapCard.trim(),
+          firstName: (formData.firstName || '').trim(),
+          lastName: (formData.lastName || '').trim(),
+          preferredName: (formData.preferredName || formData.firstName || '').trim(),
+          pronouns: (formData.pronouns || '').trim(),
+          email: (formData.email || '').trim().toLowerCase(),
+          phone: (formData.phone || '').trim(),
+          classYear: (formData.classYear || '').trim(),
+          major: (formData.major || '').trim(),
+          dietaryRestrictions: Array.isArray(formData.dietary) ? formData.dietary : [],
+          interests: Array.isArray(formData.interests) ? formData.interests : [],
+          tapCard: (formData.tapCard || '').trim(),
+          customFields,
         },
         config
       );
@@ -119,7 +126,7 @@ function RegisterContent() {
   if (isSuccess && createdStudent) {
     return (
       <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-xl border border-slate-200 text-center space-y-6">
+        <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-xl border border-slate-200 text-center space-y-6 animate-fade-in">
           <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
             <CheckCircle2 className="w-9 h-9" />
           </div>
@@ -176,10 +183,10 @@ function RegisterContent() {
           </p>
         </div>
 
-        {tapCard && (
+        {formData.tapCard && (
           <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 p-3.5 rounded-2xl text-xs font-extrabold flex items-center space-x-2">
             <CreditCard className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-            <span>Tap Card ({tapCard}) will be linked to your new profile!</span>
+            <span>Tap Card ({formData.tapCard}) will be linked to your new profile!</span>
           </div>
         )}
 
@@ -191,181 +198,83 @@ function RegisterContent() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-left">
-          {/* Name Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                First Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="e.g. Rachel"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                Last Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="e.g. Cohen"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-          </div>
+          {/* Dynamic Fields */}
+          {enabledFields.map((field) => {
+            if (field.type === 'multiselect') {
+              const selectedItems: string[] = Array.isArray(formData[field.id]) ? formData[field.id] : [];
+              const options = field.options || [];
+              return (
+                <div key={field.id} className="pt-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-2">
+                    {field.label} {field.required && <span className="text-rose-500">*</span>}
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {options.map((item) => (
+                      <button
+                        type="button"
+                        key={item}
+                        onClick={() => toggleMultiselect(field.id, item)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                          selectedItems.includes(item)
+                            ? 'bg-blue-700 text-white shadow-sm'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
 
-          {/* Preferred Name & Pronouns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                Preferred Name
-              </label>
-              <input
-                type="text"
-                value={preferredName}
-                onChange={(e) => setPreferredName(e.target.value)}
-                placeholder="Name for your nametag"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                Pronouns
-              </label>
-              <input
-                type="text"
-                value={pronouns}
-                onChange={(e) => setPronouns(e.target.value)}
-                placeholder="e.g. she/her, they/them"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-          </div>
+            if (field.id === 'classYear') {
+              return (
+                <div key={field.id}>
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
+                    {field.label} {field.required && <span className="text-rose-500">*</span>}
+                  </label>
+                  <select
+                    value={formData.classYear || '2027'}
+                    onChange={(e) => updateField('classYear', e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
+                  >
+                    <option value="2025">Class of 2025 (Senior)</option>
+                    <option value="2026">Class of 2026 (Junior)</option>
+                    <option value="2027">Class of 2027 (Sophomore)</option>
+                    <option value="2028">Class of 2028 (Freshman)</option>
+                    <option value="Grad">Graduate Student</option>
+                  </select>
+                </div>
+              );
+            }
 
-          {/* Email & Phone */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                Email *
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="student@campus.edu"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="(555) 000-0000"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          {/* Class Year & Major */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                Class Year
-              </label>
-              <select
-                value={classYear}
-                onChange={(e) => setClassYear(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
-              >
-                <option value="2025">Class of 2025 (Senior)</option>
-                <option value="2026">Class of 2026 (Junior)</option>
-                <option value="2027">Class of 2027 (Sophomore)</option>
-                <option value="2028">Class of 2028 (Freshman)</option>
-                <option value="Grad">Graduate Student</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                Major / Field of Study
-              </label>
-              <input
-                type="text"
-                value={major}
-                onChange={(e) => setMajor(e.target.value)}
-                placeholder="e.g. Psychology, Business"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          {/* Dietary Restrictions */}
-          <div>
-            <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-2">
-              Dietary Needs & Kosher Preferences
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {COMMON_DIETARY.map((item) => (
-                <button
-                  type="button"
-                  key={item}
-                  onClick={() => toggleDietary(item)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                    dietary.includes(item)
-                      ? 'bg-blue-700 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Interests */}
-          <div>
-            <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-2">
-              What are you interested in at Hillel?
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {COMMON_INTERESTS.map((item) => (
-                <button
-                  type="button"
-                  key={item}
-                  onClick={() => toggleInterest(item)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                    interests.includes(item)
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
+            return (
+              <div key={field.id}>
+                <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
+                  {field.label} {field.required && <span className="text-rose-500">*</span>}
+                </label>
+                <input
+                  type={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'text'}
+                  value={formData[field.id] || ''}
+                  onChange={(e) => updateField(field.id, e.target.value)}
+                  placeholder={field.placeholder || ''}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-sm focus:bg-white focus:border-blue-600 focus:outline-none"
+                />
+              </div>
+            );
+          })}
 
           <div className="pt-4">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-4 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-extrabold rounded-2xl text-base shadow-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+              className="w-full py-4 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white rounded-2xl text-base font-black shadow-lg transition-transform active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
             >
               {isLoading ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>Submitting Registration...</span>
+                  <span>Creating Your Account...</span>
                 </>
               ) : (
                 <>
@@ -377,9 +286,13 @@ function RegisterContent() {
           </div>
         </form>
 
-        <div className="text-center pt-2">
-          <Link href="/" className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">
-            ← Return to App Home
+        <div className="text-center pt-2 border-t border-slate-100">
+          <Link
+            href="/"
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors inline-flex items-center space-x-1"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Already have an account? Sign in here</span>
           </Link>
         </div>
       </div>
@@ -389,7 +302,13 @@ function RegisterContent() {
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400 font-bold text-sm">Loading Registration...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center font-bold text-slate-400">
+          Loading sign-up form...
+        </div>
+      }
+    >
       <RegisterContent />
     </Suspense>
   );
