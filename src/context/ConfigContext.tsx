@@ -3,13 +3,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AppConfig } from '@/lib/types';
 
+export const CANONICAL_APPS_SCRIPT_URL =
+  process.env.NEXT_PUBLIC_APPS_SCRIPT_URL ||
+  'https://script.google.com/macros/s/AKfycbyg3ZTZnTTq-KrVSyjxukEdp5lrkwGouTVY6w1sewMtk7_VVUmIQI3e35i2BM64scUG/exec';
+
 const DEFAULT_CONFIG: AppConfig = {
   orgName: 'Hillel',
   campusName: 'Campus Hillel',
   logoUrl: '',
   primaryColor: '#1d4ed8', // Hillel Blue
   sheetId: '1vRSAacNlDyCs7Fs0gEXiTtkO8vzcoXmZbWvHFqm1zm0',
-  appsScriptUrl: '',
+  appsScriptUrl: CANONICAL_APPS_SCRIPT_URL,
   isSandbox: false, // Default to live spreadsheet data
   stationId: 'front-desk-kiosk-01',
 };
@@ -41,8 +45,14 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
       const cached = localStorage.getItem(LS_CONFIG_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
+        // Ensure canonical Apps Script URL is used if cache is empty or legacy
+        if (!parsed.appsScriptUrl || !parsed.appsScriptUrl.trim()) {
+          parsed.appsScriptUrl = CANONICAL_APPS_SCRIPT_URL;
+        }
         // Default isSandbox to false unless explicitly forced
         setConfig((prev) => ({ ...prev, ...parsed, isSandbox: false }));
+      } else {
+        setConfig(DEFAULT_CONFIG);
       }
       const unlocked = sessionStorage.getItem(SS_DEV_UNLOCKED_KEY) === 'true';
       if (unlocked) setIsDevUnlocked(true);

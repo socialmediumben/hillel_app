@@ -12,6 +12,14 @@ import {
 } from './sandbox';
 import { normalizeNfcTapCard } from './hardware';
 
+export const DEFAULT_APPS_SCRIPT_URL =
+  process.env.NEXT_PUBLIC_APPS_SCRIPT_URL ||
+  'https://script.google.com/macros/s/AKfycbyg3ZTZnTTq-KrVSyjxukEdp5lrkwGouTVY6w1sewMtk7_VVUmIQI3e35i2BM64scUG/exec';
+
+export function getEffectiveAppsScriptUrl(config?: AppConfig): string {
+  return (config && config.appsScriptUrl && config.appsScriptUrl.trim()) || DEFAULT_APPS_SCRIPT_URL;
+}
+
 export interface ApiResponse<T = any> {
   status: 'success' | 'error';
   message?: string;
@@ -79,21 +87,53 @@ export async function fetchEvents(config: AppConfig): Promise<AppEvent[]> {
     return getSandboxEvents();
   }
 
-  if (!config.appsScriptUrl) {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) {
     return [];
   }
 
   try {
-    const url = `${config.appsScriptUrl}${config.appsScriptUrl.includes('?') ? '&' : '?'}action=get_events&t=${Date.now()}`;
+    const url = `${effectiveUrl}${effectiveUrl.includes('?') ? '&' : '?'}action=get_events&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (data.status === 'success' && Array.isArray(data.events)) {
-      return data.events.map((e: any) => ({
-        ...e,
-        date: normalizeDate(e.date),
-        active: e.active !== false && String(e.active).toLowerCase() !== 'false',
-      }));
+      return data.events.map((e: any) => {
+        let title = e.title;
+        let date = e.date;
+        let startTime = e.startTime;
+
+        // If title looks like a Date string (e.g. "Thu Dec 03 2026 ...") and id looks like an event title (e.g. "Event 1", "Shabbat")
+        const titleIsDate = /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/i.test(String(e.title || '').trim());
+        if (titleIsDate && e.id && !/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/i.test(String(e.id))) {
+          date = e.title;
+          title = e.id;
+        }
+
+        // If date is "1899-12-30" (Excel/Sheets time placeholder), try pulling from title if title was date
+        if (date === '1899-12-30' && titleIsDate) {
+          date = e.title;
+        }
+
+        // Clean up startTime if it has "Sat Dec 30 1899 18:00:00..."
+        if (typeof startTime === 'string' && startTime.includes('1899')) {
+          const matchTime = startTime.match(/(\d{2}:\d{2})/);
+          if (matchTime) {
+            const [h, m] = matchTime[1].split(':').map(Number);
+            const period = h >= 12 ? 'PM' : 'AM';
+            const displayH = h % 12 || 12;
+            startTime = `${displayH}:${m.toString().padStart(2, '0')} ${period}`;
+          }
+        }
+
+        return {
+          ...e,
+          title: title || e.title,
+          date: normalizeDate(date),
+          startTime: startTime || e.startTime,
+          active: true,
+        };
+      });
     }
     return [];
   } catch (err) {
@@ -121,12 +161,13 @@ export async function searchStudents(query: string, config: AppConfig): Promise<
     });
   }
 
-  if (!config.appsScriptUrl) {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) {
     return [];
   }
 
   try {
-    const url = `${config.appsScriptUrl}${config.appsScriptUrl.includes('?') ? '&' : '?'}action=get_students&query=${encodeURIComponent(cleanQ)}&t=${Date.now()}`;
+    const url = `${effectiveUrl}${effectiveUrl.includes('?') ? '&' : '?'}action=get_students&query=${encodeURIComponent(cleanQ)}&t=${Date.now()}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -171,13 +212,14 @@ export async function recordCheckIn(
     stationId,
   };
 
-  if (!config.appsScriptUrl) {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) {
     saveSandboxCheckIn(checkInRecord);
     return { success: true, checkInId: checkInRecord.id };
   }
 
   try {
-    const res = await fetch(config.appsScriptUrl, {
+    const res = await fetch(effectiveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
@@ -222,13 +264,14 @@ export async function recordEventRsvp(
     status: 'Confirmed',
   };
 
-  if (!config.appsScriptUrl) {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) {
     saveSandboxRsvp(rsvpRecord);
     return { success: true, rsvpId: rsvpRecord.id };
   }
 
   try {
-    const res = await fetch(config.appsScriptUrl, {
+    const res = await fetch(effectiveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
@@ -268,7 +311,8 @@ export async function createStudent(
     createdAt: new Date().toISOString(),
   };
 
-  if (!config.appsScriptUrl) {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) {
     const current = getSandboxStudents();
     current.push(fullStudent);
     saveSandboxStudents(current);
@@ -276,7 +320,7 @@ export async function createStudent(
   }
 
   try {
-    const res = await fetch(config.appsScriptUrl, {
+    const res = await fetch(effectiveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
@@ -308,7 +352,8 @@ export async function updateStudentProfile(
   student: StudentProfile,
   config: AppConfig
 ): Promise<{ success: boolean; error?: string }> {
-  if (!config.appsScriptUrl) {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) {
     const current = getSandboxStudents();
     const idx = current.findIndex((s) => s.id === student.id);
     if (idx >= 0) {
@@ -319,7 +364,7 @@ export async function updateStudentProfile(
   }
 
   try {
-    const res = await fetch(config.appsScriptUrl, {
+    const res = await fetch(effectiveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
@@ -360,7 +405,8 @@ export async function linkCardToStudent(
 ): Promise<{ success: boolean; error?: string }> {
   const norm = normalizeNfcTapCard(tapCard);
 
-  if (!config.appsScriptUrl) {
+  const effectiveUrl = getEffectiveAppsScriptUrl(config);
+  if (!effectiveUrl) {
     const current = getSandboxStudents();
     const student = current.find((s) => s.id === studentId);
     if (student) {
@@ -372,7 +418,7 @@ export async function linkCardToStudent(
   }
 
   try {
-    const res = await fetch(config.appsScriptUrl, {
+    const res = await fetch(effectiveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
